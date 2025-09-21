@@ -1,11 +1,37 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { Link, useNavigate } from "react-router-dom";
+import { jwtDecode } from 'jwt-decode';
+
+interface DecodedToken {
+  iat: number;
+  exp: number;
+  roles: string[];
+  username: string;
+  id: string;
+  name: string;
+  unit: string | null;
+}
 
 export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
+  const [userName, setUserName] = useState('Usuário');
+  const [userEmail, setUserEmail] = useState('usuario@exemplo.com');
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const decodedToken = jwtDecode<DecodedToken>(token);
+        setUserName(decodedToken.name);
+        setUserEmail(decodedToken.user);
+      } catch (error) {
+        console.error('Erro ao decodificar token:', error);
+      }
+    }
+  }, []);
 
   function toggleDropdown() {
     setIsOpen(!isOpen);
@@ -30,7 +56,7 @@ export default function UserDropdown() {
           <img src="/images/user/owner.jpg" alt="User" />
         </span>
 
-        <span className="block mr-1 font-medium text-theme-sm">Usuário</span>
+        <span className="block mr-1 font-medium text-theme-sm">{userName}</span>
         <svg
           className={`stroke-gray-500 dark:stroke-gray-400 transition-transform duration-200 ${
             isOpen ? "rotate-180" : ""
@@ -58,10 +84,10 @@ export default function UserDropdown() {
       >
         <div>
           <span className="block font-medium text-gray-700 text-theme-sm dark:text-gray-400">
-            Bem-vindo
+            {userName}
           </span>
           <span className="mt-0.5 block text-theme-xs text-gray-500 dark:text-gray-400">
-            Usuário
+            {userEmail}
           </span>
         </div>
 
