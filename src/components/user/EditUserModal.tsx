@@ -33,7 +33,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ isOpen, onClose, user, on
     }
 
     try {
-      const response = await fetch(`http://localhost:1000/api/v1/users/${formData.id}`, {
+      const response = await fetch(`/api/v1/users/${formData.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
