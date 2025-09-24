@@ -6,9 +6,10 @@ interface EditUnitModalProps {
   isOpen: boolean;
   onClose: () => void;
   unit: ResidentUnit | null;
+  onUnitUpdate: () => void;
 }
 
-const EditUnitModal: React.FC<EditUnitModalProps> = ({ isOpen, onClose, unit }) => {
+const EditUnitModal: React.FC<EditUnitModalProps> = ({ isOpen, onClose, unit, onUnitUpdate }) => {
   const [formData, setFormData] = useState<ResidentUnit | null>(unit);
   const [newRecipient, setNewRecipient] = useState<NotificationRecipient>({ name: '', email: '' });
 
@@ -20,25 +21,98 @@ const EditUnitModal: React.FC<EditUnitModalProps> = ({ isOpen, onClose, unit }) 
     setNewRecipient({ ...newRecipient, [e.target.name]: e.target.value });
   };
 
-  const handleAddRecipient = () => {
+  const handleSaveRecipient = async (recipient: NotificationRecipient) => {
+    if (!formData) return;
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.error('No token found');
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:1000/api/v1/resident-unit/${formData.id}/recipients`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(recipient)
+      });
+
+      if (response.status === 200) {
+        const updatedUnit = await response.json();
+        setFormData(updatedUnit);
+        sessionStorage.setItem('unit', JSON.stringify(updatedUnit));
+      } else {
+        const errorData = await response.json();
+        console.error('Error updating unit:', errorData);
+      }
+    } catch (error) {
+      console.error('Error updating unit:', error);
+    }
+  };
+
+  const handleAddRecipient = async () => {
     if (formData && newRecipient.name && newRecipient.email) {
-      const updatedRecipients = [...formData.notificationRecipients, newRecipient];
-      setFormData({ ...formData, notificationRecipients: updatedRecipients });
+      await handleSaveRecipient(newRecipient);
+      setNewRecipient({ name: '', email: '' });
+      onUnitUpdate(); // Trigger update in parent after adding
+    }
+  };
+
+  const handleRemoveRecipient = async (recipientEmail: string) => {
+    if (!formData) return;
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.error('No token found');
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:1000/api/v1/resident-unit/${formData.id}/recipients`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ email: recipientEmail })
+      });
+
+      if (response.status === 200) {
+        const updatedUnit = await response.json();
+        setFormData(updatedUnit);
+        sessionStorage.setItem('unit', JSON.stringify(updatedUnit));
+      } else {
+        const errorData = await response.json();
+        console.error('Error deleting recipient:', errorData);
+      }
+    } catch (error) {
+      console.error('Error deleting recipient:', error);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData || !unit) return;
+
+    // Handle any pending new recipient in the input fields
+    if (newRecipient.name && newRecipient.email) {
+      await handleSaveRecipient(newRecipient);
       setNewRecipient({ name: '', email: '' });
     }
-  };
 
-  const handleRemoveRecipient = (index: number) => {
-    if (formData) {
-      const updatedRecipients = formData.notificationRecipients.filter((_, i) => i !== index);
-      setFormData({ ...formData, notificationRecipients: updatedRecipients });
-    }
-  };
+    const originalRecipients = unit.notificationRecipients.map(r => r.email);
+    const currentRecipients = formData.notificationRecipients.map(r => r.email);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Handle form submission logic here
-    console.log('Updated unit data:', formData);
+    const removePromises = unit.notificationRecipients
+      .filter(r => !currentRecipients.includes(r.email))
+      .map(recipient => handleRemoveRecipient(recipient.email));
+
+    await Promise.all(removePromises);
+
+    onUnitUpdate();
     onClose();
   };
 
@@ -51,12 +125,12 @@ const EditUnitModal: React.FC<EditUnitModalProps> = ({ isOpen, onClose, unit }) 
       <div className="no-scrollbar relative overflow-y-auto rounded-3xl bg-white p-4 dark:bg-gray-900 lg:p-11">
         <div className="px-2 pr-14">
           <h4 className="mb-2 text-2xl font-semibold text-gray-800 dark:text-white/90">Editar Informação da Unidade</h4>
-          <p className="mb-6 text-sm text-gray-500 dark:text-gray-400 lg:mb-7">Atualize os destinatários de notificação.</p>
+          <p className="mb-6 text-sm text-gray-500 dark:text-gray-400 lg:mb-7">Atualize os destinatários de notificación.</p>
         </div>
         <form className="flex flex-col" onSubmit={handleSubmit}>
           <div className="custom-scrollbar h-[450px] overflow-y-auto px-2 pb-3">
             <div className="mt-7">
-              <h5 className="mb-5 text-lg font-medium text-gray-800 dark:text-white/90 lg:mb-6">Destinatários de Notificação</h5>
+              <h5 className="mb-5 text-lg font-medium text-gray-800 dark:text-white/90 lg:mb-6">Destinatários de Notificación</h5>
               
               {/* List of current recipients */}
               <div className="space-y-4 mb-6">
@@ -66,7 +140,7 @@ const EditUnitModal: React.FC<EditUnitModalProps> = ({ isOpen, onClose, unit }) 
                       <p className="text-sm font-medium text-gray-800 dark:text-white/90">{recipient.name}</p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">{recipient.email}</p>
                     </div>
-                    <button type="button" onClick={() => handleRemoveRecipient(index)} className="text-red-500 hover:text-red-700">
+                    <button type="button" onClick={() => handleRemoveRecipient(recipient.email)} className="text-red-500 hover:text-red-700">
                       Remover
                     </button>
                   </div>

@@ -6,9 +6,10 @@ interface EditUserModalProps {
   isOpen: boolean;
   onClose: () => void;
   user: User | null;
+  onUserUpdate: () => void;
 }
 
-const EditUserModal: React.FC<EditUserModalProps> = ({ isOpen, onClose, user }) => {
+const EditUserModal: React.FC<EditUserModalProps> = ({ isOpen, onClose, user, onUserUpdate }) => {
   const [formData, setFormData] = useState<User | null>(user);
 
   useEffect(() => {
@@ -21,11 +22,42 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ isOpen, onClose, user }) 
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle form submission logic here
-    console.log('Updated user data:', formData);
-    onClose();
+    if (!formData) return;
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.error('No token found');
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:1000/api/v1/users/${formData.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(formData)
+      });
+
+      if (response.status === 204) {
+        // Update session storage
+        const { residentUnit, ...userData } = formData;
+        sessionStorage.setItem('user', JSON.stringify(userData));
+        if (residentUnit) {
+          sessionStorage.setItem('unit', JSON.stringify(residentUnit));
+        }
+        onUserUpdate();
+        onClose();
+      } else {
+        const errorData = await response.json();
+        console.error('Error updating user:', errorData);
+      }
+    } catch (error) {
+      console.error('Error updating user:', error);
+    }
   };
 
   if (!isOpen || !formData) {

@@ -18,6 +18,7 @@ export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [userName, setUserName] = useState('Usuário');
   const [userEmail, setUserEmail] = useState('usuario@exemplo.com');
+  const [userGender, setUserGender] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -30,6 +31,12 @@ export default function UserDropdown() {
       } catch (error) {
         console.error('Erro ao decodificar token:', error);
       }
+    }
+
+    const storedUser = sessionStorage.getItem('user');
+    if (storedUser) {
+      const user = JSON.parse(storedUser);
+      setUserGender(user.gender);
     }
   }, []);
 
@@ -53,7 +60,13 @@ export default function UserDropdown() {
         className="flex items-center text-gray-700 dropdown-toggle dark:text-gray-400"
       >
         <span className="mr-3 overflow-hidden rounded-full h-11 w-11">
-          <img src="/images/user/owner.jpg" alt="User" />
+          {userGender === 'M' ? (
+            <img src="/images/user/woman.jpg" alt="User" />
+          ) : userGender === 'H' ? (
+            <img src="/images/user/man.png" alt="User" />
+          ) : (
+            <img src="/images/user/owner.jpg" alt="User" />
+          )}
         </span>
 
         <span className="block mr-1 font-medium text-theme-sm">{userName}</span>

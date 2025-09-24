@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import { User, DecodedToken } from '../../types/user';
 import EditUserModal from '../components/user/EditUserModal';
 import EditUnitModal from '../components/unit/EditUnitModal';
+import { UserCircleIcon } from '../icons';
 
 const UserProfile: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -13,35 +14,35 @@ const UserProfile: React.FC = () => {
   const [isEditUserModalOpen, setIsEditUserModalOpen] = useState(false);
   const [isEditUnitModalOpen, setIsEditUnitModalOpen] = useState(false);
 
-  useEffect(() => {
-    const fetchUserProfile = async (userId: string, token: string) => {
-      try {
-        setLoading(true);
-        const response = await fetch(`/api/v1/users/${userId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+  const fetchUserProfile = useCallback(async (userId: string, token: string) => {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/v1/users/${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
         }
-        const data: User = await response.json();
-        setUser(data);
-
-        // Save user and unit to sessionStorage
-        const { residentUnit, ...userData } = data;
-        sessionStorage.setItem('user', JSON.stringify(userData));
-        if (residentUnit) {
-          sessionStorage.setItem('unit', JSON.stringify(residentUnit));
-        }
-
-      } catch (err) {
-        setError((err as Error).message);
-      } finally {
-        setLoading(false);
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    };
+      const data: User = await response.json();
+      setUser(data);
 
+      // Save user and unit to sessionStorage
+      const { residentUnit, ...userData } = data;
+      sessionStorage.setItem('user', JSON.stringify(userData));
+      if (residentUnit) {
+        sessionStorage.setItem('unit', JSON.stringify(residentUnit));
+      }
+
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
       try {
@@ -56,7 +57,20 @@ const UserProfile: React.FC = () => {
       setError('No token found');
       setLoading(false);
     }
-  }, []);
+  }, [fetchUserProfile]);
+
+  const handleUserUpdate = () => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const decodedToken = jwtDecode<DecodedToken>(token);
+        fetchUserProfile(decodedToken.id, token);
+      } catch (err) {
+        console.error('Error decoding token:', err);
+        setError('Invalid token');
+      }
+    }
+  };
 
   if (loading) {
     return (
@@ -96,8 +110,14 @@ const UserProfile: React.FC = () => {
           <div className="p-5 border border-gray-200 rounded-2xl dark:border-gray-800 lg:p-6">
             <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex flex-col items-center w-full gap-6 xl:flex-row">
-                <div className="w-20 h-20 overflow-hidden border border-gray-200 rounded-full dark:border-gray-800">
-                  <img alt="user" src="/images/user/owner.jpg" />
+                <div className="w-20 h-20 overflow-hidden border border-gray-200 rounded-full dark:border-gray-800 flex items-center justify-center">
+                  {user.gender === 'M' ? (
+                    <img alt="user" src="/images/user/woman.jpg" className="w-full h-full object-cover" />
+                  ) : user.gender === 'H' ? (
+                    <img alt="user" src="/images/user/man.png" className="w-full h-full object-cover" />
+                  ) : (
+                    <UserCircleIcon className="w-full h-full text-gray-400" />
+                  )}
                 </div>
                 <div className="order-3 xl:order-2">
                   <h4 className="mb-2 text-lg font-semibold text-center text-gray-800 dark:text-white/90 xl:text-left">
@@ -211,9 +231,9 @@ const UserProfile: React.FC = () => {
         </div>
       </div>
 
-      <EditUserModal isOpen={isEditUserModalOpen} onClose={() => setIsEditUserModalOpen(false)} user={user} />
+      <EditUserModal isOpen={isEditUserModalOpen} onClose={() => setIsEditUserModalOpen(false)} user={user} onUserUpdate={handleUserUpdate} />
 
-      <EditUnitModal isOpen={isEditUnitModalOpen} onClose={() => setIsEditUnitModalOpen(false)} unit={user?.residentUnit} />
+      <EditUnitModal isOpen={isEditUnitModalOpen} onClose={() => setIsEditUnitModalOpen(false)} unit={user?.residentUnit} onUnitUpdate={handleUserUpdate} />
     </div>
   );
 };
