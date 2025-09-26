@@ -99,8 +99,8 @@ const UserProfile: React.FC = () => {
   return (
     <div>
       <PageMeta
-        title="Perfil do Usuário | TailAdmin - React.js Admin Dashboard Template"
-        description="Esta é a página de perfil do usuário para o TailAdmin - React.js Tailwind CSS Admin Dashboard Template"
+        title="Perfil do Usuário | Matisse - React.js Admin Dashboard Template"
+        description="Esta é a página de perfil do usuário para o Matisse - React.js Tailwind CSS Admin Dashboard Template"
       />
       <PageBreadcrumb pageTitle="Perfil" />
 

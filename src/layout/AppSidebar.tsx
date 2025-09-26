@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useLocation } from "react-router";
+import { Link, useLocation } from "react-router-dom";
 
 // Assume these icons are imported from an icon library
 import {
+  ArrowDownIcon,
+  ArrowUpIcon,
   BoxCubeIcon,
   CalenderIcon,
   ChevronDownIcon,
@@ -29,17 +31,37 @@ const navItems: NavItem[] = [
   {
     icon: <GridIcon />,
     name: "Dashboard",
-    subItems: [{ name: "Ecommerce", path: "/", pro: false }],
+    path: "/",
+  },
+  {
+    icon: <UserCircleIcon />,
+    name: "Usuários",
+    path: "/usuarios",
+  },
+  {
+    icon: <BoxCubeIcon />,
+    name: "Contas",
+    path: "/contas",
+  },
+  {
+    icon: <ArrowUpIcon />,
+    name: "Ingressos",
+    path: "/ingressos",
+  },
+  {
+    icon: <ArrowDownIcon />,
+    name: "Despesas",
+    path: "/despesas",
+  },
+  {
+    icon: <GridIcon />,
+    name: "Unidades Residenciais",
+    path: "/unidades-residenciais",
   },
   {
     icon: <CalenderIcon />,
     name: "Calendar",
     path: "/calendar",
-  },
-  {
-    icon: <UserCircleIcon />,
-    name: "User Profile",
-    path: "/profile",
   },
   {
     name: "Forms",

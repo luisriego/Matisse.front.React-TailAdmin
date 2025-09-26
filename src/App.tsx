@@ -19,6 +19,11 @@ import AppLayout from "./layout/AppLayout";
 import { ScrollToTop } from "./components/common/ScrollToTop";
 import Home from "./pages/Dashboard/Home";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
+import Accounts from "./pages/Accounts";
+import Incomes from "./pages/Incomes";
+import Expenses from "./pages/Expenses";
+import ResidentUnits from "./pages/ResidentUnits";
+import Users from "./pages/Users";
 
 export default function App() {
   return (
@@ -35,6 +40,16 @@ export default function App() {
               <Route path="/profile" element={<UserProfile />} />
               <Route path="/calendar" element={<Calendar />} />
               <Route path="/blank" element={<Blank />} />
+
+              {/* Main App pages */}
+              <Route path="/contas" element={<Accounts />} />
+              <Route path="/ingressos" element={<Incomes />} />
+              <Route path="/despesas" element={<Expenses />} />
+              <Route
+                path="/unidades-residenciais"
+                element={<ResidentUnits />}
+              />
+              <Route path="/usuarios" element={<Users />} />
 
               {/* Forms */}
               <Route path="/form-elements" element={<FormElements />} />
