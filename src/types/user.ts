@@ -31,6 +31,6 @@ export interface DecodedToken {
   id: string;
   name: string;
   user: string; // This is the email
-  unit: string | null; // Resident unit ID can be null
+  unit: string;
   roles: string;
 }

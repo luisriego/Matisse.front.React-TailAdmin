@@ -34,11 +34,6 @@ const navItems: NavItem[] = [
     path: "/",
   },
   {
-    icon: <UserCircleIcon />,
-    name: "Usuários",
-    path: "/usuarios",
-  },
-  {
     icon: <BoxCubeIcon />,
     name: "Contas",
     path: "/contas",
@@ -57,6 +52,11 @@ const navItems: NavItem[] = [
     icon: <GridIcon />,
     name: "Unidades Residenciais",
     path: "/unidades-residenciais",
+  },
+  {
+    icon: <UserCircleIcon />,
+    name: "Usuários",
+    path: "/usuarios",
   },
   {
     icon: <CalenderIcon />,
