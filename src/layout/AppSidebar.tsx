@@ -34,6 +34,11 @@ const navItems: NavItem[] = [
     path: "/",
   },
   {
+    icon: <PageIcon />,
+    name: "Boletos",
+    path: "/boletos",
+  },
+  {
     icon: <BoxCubeIcon />,
     name: "Contas",
     path: "/contas",
@@ -337,7 +342,7 @@ const AppSidebar: React.FC = () => {
               />
               <img
                 className="hidden dark:block"
-                src="/images/logo/logo-dark.svg"
+                src="/images/logo/matisse_line_logo.png"
                 alt="Logo"
                 width={150}
                 height={40}

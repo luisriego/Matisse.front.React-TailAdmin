@@ -24,6 +24,7 @@ import Incomes from "./pages/Incomes";
 import Expenses from "./pages/Expenses";
 import ResidentUnits from "./pages/ResidentUnits";
 import Users from "./pages/Users";
+import Slips from "./pages/Slips";
 
 export default function App() {
   return (
@@ -45,10 +46,8 @@ export default function App() {
               <Route path="/contas" element={<Accounts />} />
               <Route path="/ingressos" element={<Incomes />} />
               <Route path="/despesas" element={<Expenses />} />
-              <Route
-                path="/unidades-residenciais"
-                element={<ResidentUnits />}
-              />
+              <Route path="/unidades-residenciais" element={<ResidentUnits />} />
+              <Route path="/boletos" element={<Slips />} />
               <Route path="/usuarios" element={<Users />} />
 
               {/* Forms */}

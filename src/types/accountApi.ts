@@ -4,6 +4,7 @@ export interface Account {
   name: string;
   description: string | null;
   isActive: boolean;
+  balance: number;
 }
 
 export interface AccountsApiResponse {

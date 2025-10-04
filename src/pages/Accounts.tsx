@@ -5,6 +5,7 @@ import PageMeta from "../components/common/PageMeta";
 import DataTable, { ColumnDef } from "../components/tables/DataTable";
 import { Account } from "../types/accountApi";
 import Switch from "../components/ui/Switch";
+import EditAccountModal from "../components/modal/EditAccountModal";
 import { PencilIcon, TrashBinIcon } from "../icons";
 
 export default function Accounts() {
@@ -12,9 +13,8 @@ export default function Accounts() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingAccountId, setUpdatingAccountId] = useState<string | null>(null);
-
-  // It's a good practice to store base URLs in environment variables
-  const API_BASE_URL = "http://localhost:1000/api/v1";
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
 
   const fetchAccounts = async () => {
     setLoading(true);
@@ -24,7 +24,7 @@ export default function Accounts() {
         throw new Error("Authentication token not found.");
       }
 
-      const response = await fetch(`${API_BASE_URL}/accounts`, {
+      const response = await fetch(`/api/v1/accounts`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -51,8 +51,8 @@ export default function Accounts() {
   const handleToggleAccount = async (accountId: string, isActive: boolean) => {
     setUpdatingAccountId(accountId);
     const endpoint = isActive
-      ? `${API_BASE_URL}/accounts/enable/${accountId}`
-      : `${API_BASE_URL}/accounts/disable/${accountId}`;
+      ? `/api/v1/accounts/enable/${accountId}`
+      : `/api/v1/accounts/disable/${accountId}`;
 
     try {
       const token = localStorage.getItem("token");
@@ -89,6 +89,11 @@ export default function Accounts() {
     }
   };
 
+  const handleOpenEditModal = (account: Account) => {
+    setSelectedAccount(account);
+    setIsEditModalOpen(true);
+  };
+
   const columns: ColumnDef<Account>[] = [
     {
       key: "name",
@@ -115,11 +120,27 @@ export default function Accounts() {
       header: "Descrição",
       cell: (account) => (
         <p
-          className="truncate max-w-2xl text-gray-500 text-theme-sm dark:text-gray-400"
-          title={account.description || ''}
+        className="truncate max-w-lg text-gray-500 text-theme-sm dark:text-gray-400"
+        title={account.description || ''}
         >
           {account.description}
         </p>
+      ),
+    },
+    {
+      key: "total",
+      header: "Saldo",
+      className: "w-48",
+      cell: (account) => (
+        <span
+          className={`font-medium text-theme-sm ${
+            account.balance < 0
+              ? "text-error-500"
+              : "text-gray-800 dark:text-white/90"
+          }`}
+        >
+          {(account.balance / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+        </span>
       ),
     },
     {
@@ -144,7 +165,7 @@ export default function Accounts() {
           <button className="text-gray-500 hover:text-error-500 dark:text-gray-400 dark:hover:text-error-500">
             <TrashBinIcon className="size-5" />
           </button>
-          <button className="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white/90">
+          <button onClick={() => handleOpenEditModal(account)} className="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white/90">
             <PencilIcon className="size-5" />
           </button>
         </div>
@@ -175,6 +196,12 @@ export default function Accounts() {
         <ComponentCard title="Todas as Contas">
           {renderContent()}
         </ComponentCard>
+        <EditAccountModal
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          account={selectedAccount}
+          onAccountUpdate={fetchAccounts}
+        />
       </div>
     </>
   );

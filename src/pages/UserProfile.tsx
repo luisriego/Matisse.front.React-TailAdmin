@@ -3,7 +3,7 @@ import { jwtDecode } from 'jwt-decode';
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import { User, DecodedToken } from '../../types/user';
-import EditUserModal from '../components/user/EditUserModal';
+import EditUserModal from '../components/modal/EditUserModal';
 import EditUnitModal from '../components/unit/EditUnitModal';
 import { UserCircleIcon } from '../icons';
 
