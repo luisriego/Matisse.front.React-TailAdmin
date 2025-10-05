@@ -1,10 +1,9 @@
-import React,
- { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from "react";
 import PageMeta from '../components/common/PageMeta';
 import PageBreadcrumb from '../components/common/PageBreadCrumb';
 import ComponentCard from '../components/common/ComponentCard';
 import DataTable, { ColumnDef } from '../components/tables/DataTable';
-
+import AddExpenseModal from '../components/modal/AddExpenseModal'; // Corrected path if it was wrong
 
 interface ExpenseType {
   id: string;
@@ -14,6 +13,11 @@ interface ExpenseType {
 interface ResidentUnit {
   id: string;
   unit: string;
+}
+
+interface Account {
+  id: string;
+  name: string;
 }
 
 // Interfaz actualizada para coincidir con la respuesta de la API
@@ -52,21 +56,14 @@ interface ApiResidentUnit {
 }
 
 const Expenses: React.FC = () => {
-  const [description, setDescription] = useState('');
-  const [amount, setAmount] = useState('');
-  const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split('T')[0]);
-  const [expenseTypeId, setExpenseTypeId] = useState('');
-  const [residentUnitId, setResidentUnitId] = useState('');
-
   const [expenseTypes, setExpenseTypes] = useState<ExpenseType[]>([]);
   const [residentUnits, setResidentUnits] = useState<ResidentUnit[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
 
-  const [loading, setLoading] = useState(false);
   const [loadingExpenses, setLoadingExpenses] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [expensesError, setExpensesError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
 
   // Carga de datos para los selectores (Tipos de Despesa y Unidades)
@@ -91,6 +88,14 @@ const Expenses: React.FC = () => {
         if (!unitsResponse.ok) throw new Error('Falha ao carregar unidades residenciais.');
         const unitsData: ApiResidentUnit[] = await unitsResponse.json();
         setResidentUnits(unitsData);
+
+        // Cargar Cuentas desde la API
+        const accountsResponse = await fetch('/api/v1/accounts', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!accountsResponse.ok) throw new Error('Falha ao carregar contas.');
+        const accountsData = await accountsResponse.json();
+        setAccounts(accountsData.accounts);
       } catch (err) {
         console.error("Erro ao carregar dados iniciais:", err);
       }
@@ -98,116 +103,62 @@ const Expenses: React.FC = () => {
     fetchInitialData();
   }, []);
 
-  // Simulación de carga de despesas
-  useEffect(() => {
-    const fetchExpenses = async () => {
-      setLoadingExpenses(true);
-      setExpensesError(null);
-      try {
-        const token = localStorage.getItem("token");
-        if (!token) {
-          throw new Error("Token de autenticação não encontrado.");
-        }
-
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = now.getMonth() + 1; // getMonth() es 0-indexado
-
-        const response = await fetch(`/api/v1/expenses/date-range/${year}/${month}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data: ApiExpense[] = await response.json();
-
-        // Mapeamos la respuesta de la API a la estructura que espera el frontend
-        const formattedExpenses: Expense[] = data.map(exp => ({
-          ...exp,
-          dueDate: exp.dueDate.date,
-          paidAt: exp.paidAt ? exp.paidAt.date : null,
-          createdAt: exp.createdAt.date,
-          expenseType: exp.type,
-        }));
-
-        setExpenses(formattedExpenses);
-      } catch (err: any) {
-        setExpensesError('Falha ao carregar as despesas.');
-        console.error("Failed to fetch expenses:", err);
-      } finally {
-        setLoadingExpenses(false);
-      }
-    };
-
-    fetchExpenses();
-  }, []);
-
-  const handleEdit = (expense: Expense) => {
-    console.log('Edit:', expense);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-
+  const fetchExpenses = useCallback(async () => {
+    // A lógica de busca permanece a mesma, mas agora será chamada pelo modal também
+    setLoadingExpenses(true);
+    setExpensesError(null);
     try {
       const token = localStorage.getItem("token");
       if (!token) {
         throw new Error("Token de autenticação não encontrado.");
       }
 
-      const expenseData = {
-        description,
-        amount: Math.round(parseFloat(amount) * 100), // Enviar como centavos
-        expenseDate,
-        expenseTypeId,
-        residentUnitId: residentUnitId || null,
-      };
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth() + 1; // getMonth() es 0-indexado
 
-      // Endpoint de ejemplo, necesitará ser ajustado al real
-      const response = await fetch('/api/v1/expenses', {
-        method: 'POST',
+      const response = await fetch(`/api/v1/expenses/date-range/${year}/${month}`, {
         headers: {
-          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(expenseData),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Falha ao criar a despesa.');
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      setSuccess('Despesa criada com sucesso!');
-      // Limpiar formulario
-      setDescription('');
-      setAmount('');
-      setExpenseDate(new Date().toISOString().split('T')[0]);
-      setExpenseTypeId('');
-      setResidentUnitId('');
+      const data: ApiExpense[] = await response.json();
 
+      // Mapeamos la respuesta de la API a la estructura que espera el frontend
+      const formattedExpenses: Expense[] = data.map(exp => ({
+        ...exp,
+        dueDate: exp.dueDate.date,
+        paidAt: exp.paidAt ? exp.paidAt.date : null,
+        createdAt: exp.createdAt.date,
+        expenseType: exp.type,
+      }));
+
+      setExpenses(formattedExpenses);
     } catch (err: any) {
-      setError(err.message);
+      setExpensesError('Falha ao carregar as despesas.');
+      console.error("Failed to fetch expenses:", err);
     } finally {
-      setLoading(false);
+      setLoadingExpenses(false);
     }
-  };
+  }, []);
+
+  // Carga inicial de despesas
+  useEffect(() => {
+    fetchExpenses();
+  }, [fetchExpenses]);
 
   const columns: ColumnDef<Expense>[] = [
     {
-      key: 'description',
-      header: 'Descrição',
+      key: 'expenseType',
+      header: 'Tipo',
+      className: 'w-1/3',
       cell: (expense) => (
-        <span className="font-medium text-gray-800 text-theme-sm dark:text-white/90">
-          {expense.description}
-        </span>
+        <span className="font-medium text-gray-800 text-theme-sm dark:text-white/90">{expense.expenseType.name}</span>
       ),
     },
     {
@@ -231,14 +182,6 @@ const Expenses: React.FC = () => {
       ),
     },
     {
-      key: 'expenseType',
-      header: 'Tipo',
-      className: 'w-48',
-      cell: (expense) => (
-        <span className="text-gray-500 text-theme-sm dark:text-gray-400">{expense.expenseType.name}</span>
-      ),
-    },
-    {
       key: 'residentUnit',
       header: 'Unidade',
       className: 'w-40',
@@ -252,6 +195,16 @@ const Expenses: React.FC = () => {
         );
       },
     },
+        {
+      key: 'description',
+      header: 'Descrição',
+      className: 'w-1/4',
+      cell: (expense) => (
+        <span className="text-gray-500 text-theme-sm dark:text-gray-400">
+          {expense.description}
+        </span>
+      ),
+    },
   ];
 
   return (
@@ -263,54 +216,15 @@ const Expenses: React.FC = () => {
       <PageBreadcrumb pageTitle="Despesas" />
 
       <div className="space-y-6">
-        <ComponentCard title="Registrar Nova Despesa">
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <div className="md:col-span-2">
-              <label htmlFor="description" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Descrição</label>
-              <input type="text" id="description" value={description} onChange={(e) => setDescription(e.target.value)} required className="form-input" />
-            </div>
-
-            <div>
-              <label htmlFor="amount" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Monto (R$)</label>
-              <input type="number" id="amount" value={amount} onChange={(e) => setAmount(e.target.value)} required step="0.01" className="form-input" placeholder="150.50" />
-            </div>
-
-            <div>
-              <label htmlFor="expenseDate" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Data da Despesa</label>
-              <input type="date" id="expenseDate" value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} required className="form-input" />
-            </div>
-
-            <div>
-              <label htmlFor="expenseType" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Tipo de Despesa</label>
-              <select id="expenseType" value={expenseTypeId} onChange={(e) => setExpenseTypeId(e.target.value)} required className="form-select">
-                <option value="">Selecione um tipo</option>
-                {expenseTypes.map(type => (
-                  <option key={type.id} value={type.id}>{type.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label htmlFor="residentUnit" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Unidade Residencial (Opcional)</label>
-              <select id="residentUnit" value={residentUnitId} onChange={(e) => setResidentUnitId(e.target.value)} className="form-select">
-                <option value="">Nenhuma / Geral</option>
-                {residentUnits.map(unit => (
-                  <option key={unit.id} value={unit.id}>{unit.unit}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="md:col-span-2 flex items-center justify-end gap-4">
-              {error && <p className="text-sm text-error-500">{error}</p>}
-              {success && <p className="text-sm text-success-500">{success}</p>}
-              <button type="submit" className="btn btn-primary" disabled={loading}>
-                {loading ? 'Salvando...' : 'Salvar Despesa'}
-              </button>
-            </div>
-          </form>
-        </ComponentCard>
-
-        <ComponentCard title="Todas as despesas do mês atual">
+        <ComponentCard
+          title="Todas as despesas do mês atual"
+          headerContent={
+            <button onClick={() => setIsAddModalOpen(true)} className="inline-flex items-center justify-center gap-2 px-4 py-3 text-sm transition bg-brand-500 rounded-lg shadow-theme-xs text-white hover:bg-brand-600 disabled:bg-brand-300">
+              Novo Gasto
+              <span className="flex items-center">+</span>
+            </button> 
+          }
+        >
           {loadingExpenses ? (
             <p className="text-center">Carregando despesas...</p>
           ) : expensesError ? (
@@ -321,6 +235,15 @@ const Expenses: React.FC = () => {
             <DataTable columns={columns} data={expenses} />
           )}
         </ComponentCard>
+
+        <AddExpenseModal
+          isOpen={isAddModalOpen}
+          onClose={() => setIsAddModalOpen(false)}
+          onExpenseAdded={fetchExpenses}
+          expenseTypes={expenseTypes}
+          residentUnits={residentUnits}
+          accounts={accounts}
+        />
       </div>
     </>
   );

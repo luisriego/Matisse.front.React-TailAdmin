@@ -4,6 +4,7 @@ interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   className?: string;
+  title?: string;
   children: React.ReactNode;
   showCloseButton?: boolean; // New prop to control close button visibility
   isFullscreen?: boolean; // Default to false for backwards compatibility
@@ -13,6 +14,7 @@ export const Modal: React.FC<ModalProps> = ({
   isOpen,
   onClose,
   children,
+  title,
   className,
   showCloseButton = true, // Default to true for backwards compatibility
   isFullscreen = false,
@@ -87,7 +89,14 @@ export const Modal: React.FC<ModalProps> = ({
             </svg>
           </button>
         )}
-        <div>{children}</div>
+        {title && (
+          <div className="border-b border-gray-200 px-5 py-4 dark:border-gray-800 lg:px-10 lg:py-6">
+            <h4 className="text-lg font-medium text-gray-800 dark:text-white/90">
+              {title}
+            </h4>
+          </div>
+        )}
+        <div className="p-5 lg:p-10">{children}</div>
       </div>
     </div>
   );
