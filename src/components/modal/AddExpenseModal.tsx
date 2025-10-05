@@ -1,0 +1,294 @@
+import React, { useState, useEffect } from 'react';
+import { Modal } from '../ui/modal';
+import { v4 as uuidv4 } from 'uuid';
+import SuccessAlert from '../common/alerts/SuccessAlert';
+import ErrorAlert from '../common/alerts/ErrorAlert';
+
+interface ExpenseType {
+  id: string;
+  name: string;
+}
+
+interface Account {
+  id: string;
+  name: string;
+}
+
+interface ResidentUnit {
+  id: string;
+  unit: string;
+}
+
+interface AddExpenseModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onExpenseAdded: () => void;
+  expenseTypes: ExpenseType[];
+  residentUnits: ResidentUnit[];
+  accounts: Account[];
+}
+
+const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
+  isOpen,
+  onClose,
+  onExpenseAdded,
+  expenseTypes,
+  residentUnits,
+  accounts,
+}) => {
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [description, setDescription] = useState('');
+  const [amount, setAmount] = useState('');
+  const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split('T')[0]);
+  const [expenseTypeId, setExpenseTypeId] = useState('');
+  const [accountId, setAccountId] = useState('');
+  const [residentUnitId, setResidentUnitId] = useState('');
+  const [dueDay, setDueDay] = useState<number | ''>('');
+  const [monthsOfYear, setMonthsOfYear] = useState<number[]>([]);
+  const [isActive, setIsActive] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  // Limpa o formulário quando o modal é fechado
+  useEffect(() => {
+    if (!isOpen) {
+      setIsRecurring(false);
+      setDescription('');
+      setAmount('');
+      setExpenseDate(new Date().toISOString().split('T')[0]);
+      setExpenseTypeId('');
+      setAccountId('');
+      setResidentUnitId('');
+      setDueDay('');
+      setMonthsOfYear([]);
+      setIsActive(true);
+      setLoading(false);
+      setError(null);
+      setSuccess(null);
+    }
+  }, [isOpen]);
+
+  const handleMonthChange = (month: number) => {
+    setMonthsOfYear(prev =>
+      prev.includes(month) ? prev.filter(m => m !== month) : [...prev, month]
+    );
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        throw new Error("Token de autenticação não encontrado.");
+      }
+
+      // const expenseData = {
+      //   description,
+      //   amount: Math.round(parseFloat(amount) * 100), // Enviar como centavos
+      //   expenseDate,
+      //   expenseTypeId,
+      //   residentUnitId: residentUnitId || null,
+      // };
+
+      let endpoint = '/api/v1/expenses';
+      let method = 'POST';
+      let payload: any;
+
+      if (isRecurring) {
+        endpoint = '/api/v1/recurring-expenses/create';
+        method = 'PUT';
+        payload = {
+          id: uuidv4(),
+          amount: Math.round(parseFloat(amount) * 100),
+          type: expenseTypeId,
+          accountId,
+          dueDay: dueDay,
+          monthsOfYear: monthsOfYear,
+          description: description || null,
+        };
+      } else {
+        payload = {
+          id: uuidv4(),
+          description,
+          amount: Math.round(parseFloat(amount) * 100),
+          dueDate: expenseDate,
+          type: expenseTypeId,
+          accountId,
+          isActive,
+          residentUnitId: residentUnitId || null,
+        };
+      }
+
+      const response = await fetch(endpoint, {
+        method: method,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Falha ao criar a despesa.');
+      }
+
+      setSuccess('Despesa criada com sucesso!');
+      onExpenseAdded(); // Notifica o componente pai para recarregar as despesas
+      setTimeout(() => {
+        onClose(); // Fecha o modal após um pequeno atraso
+      }, 1000);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} className="w-3/4 max-w-[700px]">
+      <div className="no-scrollbar relative overflow-y-auto rounded-3xl bg-white p-4 dark:bg-gray-900 lg:p-11">
+        <div className="px-2 pr-14">
+          <h4 className="mb-2 text-2xl font-semibold text-gray-800 dark:text-white/90">Registrar Nova Despesa</h4>
+          <p className="mb-6 text-sm text-gray-500 dark:text-gray-400 lg:mb-7">Preencha os dados para adicionar uma nova despesa.</p>
+        </div>
+        <div className="mb-6 flex items-center gap-2 rounded-lg bg-gray-100 p-1.5 dark:bg-gray-800">
+          <button
+            type="button"
+            onClick={() => setIsRecurring(false)}
+            className={`w-full rounded-md px-5 py-2.5 text-sm font-medium transition-colors ${
+              !isRecurring ? 'bg-white text-gray-800 shadow-sm dark:bg-gray-700 dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white'
+            }`}
+          >
+            Gasto Único
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsRecurring(true)}
+            className={`w-full rounded-md px-5 py-2.5 text-sm font-medium transition-colors ${
+              isRecurring ? 'bg-white text-gray-800 shadow-sm dark:bg-gray-700 dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white'
+            }`}
+          >
+            Gasto Recorrente
+          </button>
+        </div>
+        <form className="flex flex-col" onSubmit={handleSubmit}>
+          <div className="custom-scrollbar h-[450px] overflow-y-auto px-2 pb-3">
+            <div className="mt-7">
+              <h5 className="mb-5 text-lg font-medium text-gray-800 dark:text-white/90 lg:mb-6">Detalhes da Despesa</h5>
+              <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
+                {/* <div className="sm:col-span-2">
+                  <label htmlFor="description" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Descrição {isRecurring && '(Opcional)'}</label>
+                  <input type="text" id="description" value={description} onChange={(e) => setDescription(e.target.value)} required={!isRecurring} className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800" />
+                </div> */}
+
+                <div>
+                  <label htmlFor="amount" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Monto (R$)</label>
+                  <input type="number" id="amount" value={amount} onChange={(e) => setAmount(e.target.value)} required step="0.01" className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800" placeholder="150.50" />
+                </div>
+
+                {isRecurring ? (
+                  <div>
+                    <label htmlFor="dueDay" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Dia do Vencimento</label>
+                    <input type="number" id="dueDay" value={dueDay} onChange={(e) => setDueDay(parseInt(e.target.value))} required min="1" max="31" className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800" />
+                  </div>
+                ) : (
+                  <div>
+                    <label htmlFor="expenseDate" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Data da Despesa</label>
+                    <input type="date" id="expenseDate" value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} required className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800" />
+                  </div>
+                )}
+
+                <div>
+                  <label htmlFor="expenseType" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Tipo de Despesa</label>
+                  <select id="expenseType" value={expenseTypeId} onChange={(e) => setExpenseTypeId(e.target.value)} required className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800">
+                    <option value="">Selecione um tipo</option>
+                    {expenseTypes.map(type => <option key={type.id} value={type.id}>{type.name}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="account" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Conta</label>
+                  <select id="account" value={accountId} onChange={(e) => setAccountId(e.target.value)} required className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800">
+                    <option value="">Selecione uma conta</option>
+                    {accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {!isRecurring && (
+                  <>
+                    <div className="sm:col-span-2 mt-5">
+                      <label htmlFor="residentUnit" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Unidade Residencial (Opcional)</label>
+                      <select id="residentUnit" value={residentUnitId} onChange={(e) => setResidentUnitId(e.target.value)} className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800">
+                        <option value="">Nenhuma / Geral</option>
+                        {residentUnits.map(unit => <option key={unit.id} value={unit.id}>{unit.unit}</option>)}
+                      </select>
+                    </div>
+                    {/* <div className="flex items-center gap-4">
+                      <label htmlFor="isActive" className="text-sm font-medium text-gray-700 dark:text-gray-400">Ativa</label>
+                      <div className="relative">
+                        <input
+                          type="checkbox"
+                          id="isActive"
+                          className="peer sr-only"
+                          checked={isActive}
+                          onChange={(e) => setIsActive(e.target.checked)}
+                        />
+                        <div className="h-5 w-10 rounded-full bg-gray-300 shadow-inner peer-checked:bg-brand-500 dark:bg-gray-700"></div>
+                        <div className="dot absolute -left-1 -top-1 h-7 w-7 rounded-full bg-white shadow-switch-1 transition peer-checked:translate-x-full"></div>
+                      </div>
+                    </div> */}
+                  </>
+                )}
+
+                {isRecurring && (
+                  <div className="sm:col-span-2 mt-5">
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Meses de Recorrência</label>
+                    <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-6">
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
+                        <div key={month} className="flex items-center">
+                          <input
+                            type="checkbox"
+                            id={`month-${month}`}
+                            checked={monthsOfYear.includes(month)}
+                            onChange={() => handleMonthChange(month)}
+                            className="w-4 h-4 text-brand-600 border-gray-300 rounded focus:ring-brand-500"
+                          />
+                          <label htmlFor={`month-${month}`} className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                            {new Date(0, month - 1).toLocaleString('pt-BR', { month: 'short' }).toUpperCase()}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+            </div>
+            <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
+                <div className="sm:col-span-2 mt-5">
+                  <label htmlFor="description" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Descrição {isRecurring && '(Opcional)'}</label>
+                  <input type="text" id="description" value={description} onChange={(e) => setDescription(e.target.value)} required={!isRecurring} className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800" />
+                </div>
+            </div>
+
+          </div>
+          {error && <ErrorAlert message={error} />}
+          {success && <SuccessAlert message={success} />}
+          <div className="flex items-center gap-3 px-2 mt-6 lg:justify-end">
+            <button type="button" onClick={onClose} className="inline-flex items-center justify-center gap-2 px-4 py-3 text-sm transition bg-white rounded-lg text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:bg-white/[0.03] dark:hover:text-gray-300 ">Cancelar</button>
+            <button type="submit" disabled={loading} className="inline-flex items-center justify-center gap-2 px-4 py-3 text-sm transition rounded-lg bg-brand-500 text-white shadow-theme-xs hover:bg-brand-600 disabled:bg-brand-300 ">
+              {loading ? 'Salvando...' : 'Salvar Despesa'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </Modal>
+  );
+};
+
+export default AddExpenseModal;
