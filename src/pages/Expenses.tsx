@@ -158,7 +158,7 @@ const Expenses: React.FC = () => {
       header: 'Tipo',
       className: 'w-1/3',
       cell: (expense) => (
-        <span className="font-medium text-gray-800 text-theme-sm dark:text-white/90">{expense.expenseType.name}</span>
+        <span className="font-medium text-gray-800 text-theme-sm dark:text-white/90">{expense.expenseType?.name || 'Não especificado'}</span>
       ),
     },
     {
