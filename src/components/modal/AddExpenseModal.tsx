@@ -50,6 +50,19 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  const currentMonth = new Date().getMonth() + 1;
+
+  const availableMonths = Array.from({ length: 12 }, (_, i) => i + 1).filter(month => month >= currentMonth);
+  const allAvailableSelected = availableMonths.length > 0 && availableMonths.every(m => monthsOfYear.includes(m));
+
+  const handleSelectAllMonths = () => {
+    if (allAvailableSelected) {
+      setMonthsOfYear(prev => prev.filter(m => !availableMonths.includes(m)));
+    } else {
+      setMonthsOfYear(prev => [...new Set([...prev, ...availableMonths])]);
+    }
+  };
+
   // Limpa o formulário quando o modal é fechado
   useEffect(() => {
     if (!isOpen) {
@@ -249,7 +262,21 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
 
                 {isRecurring && (
                   <div className="sm:col-span-2 mt-5">
-                    <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Meses de Recorrência</label>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-400">Meses de Recorrência</label>
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="selectAllMonths"
+                          onChange={handleSelectAllMonths}
+                          checked={allAvailableSelected}
+                          className="w-4 h-4 text-brand-600 border-gray-300 rounded focus:ring-brand-500"
+                        />
+                        <label htmlFor="selectAllMonths" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                          Todos
+                        </label>
+                      </div>
+                    </div>
                     <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-6">
                       {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
                         <div key={month} className="flex items-center">
@@ -258,9 +285,17 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                             id={`month-${month}`}
                             checked={monthsOfYear.includes(month)}
                             onChange={() => handleMonthChange(month)}
-                            className="w-4 h-4 text-brand-600 border-gray-300 rounded focus:ring-brand-500"
+                            disabled={month < currentMonth}
+                            className="w-4 h-4 text-brand-600 border-gray-300 rounded focus:ring-brand-500 disabled:cursor-not-allowed"
                           />
-                          <label htmlFor={`month-${month}`} className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                          <label
+                            htmlFor={`month-${month}`}
+                            className={`ml-2 text-sm ${
+                              month < currentMonth
+                                ? 'text-gray-400 dark:text-gray-500'
+                                : 'text-gray-700 dark:text-gray-300'
+                            }`}
+                          >
                             {new Date(0, month - 1).toLocaleString('pt-BR', { month: 'short' }).toUpperCase()}
                           </label>
                         </div>
