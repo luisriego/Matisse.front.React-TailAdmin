@@ -6,15 +6,19 @@ import DataTable, { ColumnDef } from "../components/tables/DataTable";
 import { Account } from "../types/accountApi";
 import Switch from "../components/ui/Switch";
 import EditAccountModal from "../components/modal/EditAccountModal";
+import SetInitialBalanceModal from "../components/modal/SetInitialBalanceModal"; // Importar el nuevo modal
 import { PencilIcon, TrashBinIcon } from "../icons";
 
 export default function Accounts() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadingBalances, setLoadingBalances] = useState<boolean>(false);
   const [updatingAccountId, setUpdatingAccountId] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
+  const [isSetInitialBalanceModalOpen, setIsSetInitialBalanceModalOpen] = useState(false); // Nuevo estado
+  const [accountToSetInitialBalance, setAccountToSetInitialBalance] = useState<Account | null>(null); // Nuevo estado
 
   const fetchAccounts = async () => {
     setLoading(true);
@@ -35,7 +39,33 @@ export default function Accounts() {
       }
 
       const data = await response.json();
-      setAccounts(data.accounts);
+      const initialAccounts: Account[] = data.accounts;
+      setAccounts(initialAccounts);
+
+      // Ahora, obtenemos los saldos para cada cuenta
+      setLoadingBalances(true);
+      const balancePromises = initialAccounts.map(account =>
+        fetch(`/api/v1/accounts/${account.id}/balance`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }).then(res => res.ok ? res.json() : null)
+      );
+
+      const balanceResults = await Promise.all(balancePromises);
+
+      setAccounts(currentAccounts => {
+        const updatedAccounts = [...currentAccounts];
+        balanceResults.forEach(balanceData => {
+          if (balanceData) {
+            const accountIndex = updatedAccounts.findIndex(acc => acc.id === balanceData.account_id);
+            if (accountIndex !== -1) {
+              updatedAccounts[accountIndex] = { ...updatedAccounts[accountIndex], balance: balanceData.balance };
+            }
+          }
+        });
+        return updatedAccounts;
+      });
+      setLoadingBalances(false);
+
     } catch (error: any) {
       setError(error.message);
       console.error("Failed to fetch accounts:", error);
@@ -92,6 +122,15 @@ export default function Accounts() {
   const handleOpenEditModal = (account: Account) => {
     setSelectedAccount(account);
     setIsEditModalOpen(true);
+  };
+
+  const handleOpenSetInitialBalanceModal = (account: Account) => { // Nueva función
+    if (account.balance !== undefined && account.balance !== null && account.balance !== 0) {
+      alert(`La cuenta '${account.name}' ya tiene un saldo inicial de ${(account.balance / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}. No se puede establecer otro.`);
+      return;
+    }
+    setAccountToSetInitialBalance(account);
+    setIsSetInitialBalanceModalOpen(true);
   };
 
   const columns: ColumnDef<Account>[] = [
@@ -174,7 +213,7 @@ export default function Accounts() {
   ];
 
   const renderContent = () => {
-    if (loading) {
+    if (loading || loadingBalances) {
       return <p>Carregando...</p>;
     }
 
@@ -201,6 +240,13 @@ export default function Accounts() {
           onClose={() => setIsEditModalOpen(false)}
           account={selectedAccount}
           onAccountUpdate={fetchAccounts}
+          onOpenSetInitialBalance={handleOpenSetInitialBalanceModal} // Pasar la nueva prop
+        />
+        <SetInitialBalanceModal // Nuevo modal
+          isOpen={isSetInitialBalanceModalOpen}
+          onClose={() => setIsSetInitialBalanceModalOpen(false)}
+          account={accountToSetInitialBalance}
+          onInitialBalanceSet={fetchAccounts}
         />
       </div>
     </>

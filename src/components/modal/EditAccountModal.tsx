@@ -7,9 +7,10 @@ interface EditAccountModalProps {
   onClose: () => void;
   account: Account | null;
   onAccountUpdate: () => void;
+  onOpenSetInitialBalance: (account: Account) => void; // Nueva prop
 }
 
-const EditAccountModal: React.FC<EditAccountModalProps> = ({ isOpen, onClose, account, onAccountUpdate }) => {
+const EditAccountModal: React.FC<EditAccountModalProps> = ({ isOpen, onClose, account, onAccountUpdate, onOpenSetInitialBalance }) => {
   const [formData, setFormData] = useState<Account | null>(account);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -120,6 +121,20 @@ const EditAccountModal: React.FC<EditAccountModalProps> = ({ isOpen, onClose, ac
           </div>
           {error && <p className="text-red-500 text-sm mt-4 px-2">{error}</p>}
           <div className="flex items-center gap-3 px-2 mt-6 lg:justify-end">
+            {account && (account.balance === undefined || account.balance === null || account.balance === 0) && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  if (account) {
+                    onOpenSetInitialBalance(account);
+                  }
+                }}
+                className="inline-flex items-center justify-center gap-2 rounded-lg transition px-4 py-3 text-sm bg-brand-500 text-white shadow-theme-xs hover:bg-brand-600 disabled:bg-brand-300"
+              >
+                Definir Saldo Inicial
+              </button>
+            )}
             <button type="button" onClick={onClose} className="inline-flex items-center justify-center gap-2 rounded-lg transition  px-4 py-3 text-sm bg-white text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:bg-white/[0.03] dark:hover:text-gray-300 ">Fechar</button>
             <button type="submit" disabled={isLoading} className="inline-flex items-center justify-center gap-2 rounded-lg transition  px-4 py-3 text-sm bg-brand-500 text-white shadow-theme-xs hover:bg-brand-600 disabled:bg-brand-300 ">
               {isLoading ? 'Salvando...' : 'Salvar Alterações'}
