@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../ui/modal';
 import { Account } from '../../types/accountApi';
+import DatePicker from '../form/date-picker'; // Importar el DatePicker
 
 interface SetInitialBalanceModalProps {
   isOpen: boolean;
@@ -18,7 +19,8 @@ const SetInitialBalanceModal: React.FC<SetInitialBalanceModalProps> = ({ isOpen,
   useEffect(() => {
     if (isOpen) {
       setAmount(0);
-      setDate(new Date().toISOString().split('T')[0]); // Fecha actual por defecto
+      // Asegurarse de que la fecha por defecto esté en el formato YYYY-MM-DD
+      setDate(new Date().toISOString().split('T')[0]);
       setError(null);
     }
   }, [isOpen]);
@@ -81,7 +83,7 @@ const SetInitialBalanceModal: React.FC<SetInitialBalanceModalProps> = ({ isOpen,
                 <div className="col-span-1">
                   <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Valor</label>
                   <input
-                    className=" h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3  dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30  bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-brand-500/20 dark:border-gray-700 dark:text-white/90  dark:focus:border-brand-800"
+                    className=" h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3  dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30  bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-brand-500/20 dark:border-gray-700  dark:focus:border-brand-800"
                     type="number"
                     name="amount"
                     value={amount}
@@ -91,14 +93,16 @@ const SetInitialBalanceModal: React.FC<SetInitialBalanceModalProps> = ({ isOpen,
                   />
                 </div>
                 <div className="col-span-1">
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Data</label>
-                  <input
-                    className=" h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3  dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30  bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-brand-500/20 dark:border-gray-700 dark:text-white/90  dark:focus:border-brand-800"
-                    type="date"
-                    name="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    required
+                  <DatePicker
+                    id="initial-balance-date"
+                    label="Data"
+                    defaultDate={date}
+                    onChange={([selectedDate]) => {
+                      if (selectedDate) {
+                        setDate(selectedDate.toISOString().split('T')[0]);
+                      }
+                    }}
+                    placeholder="Seleccionar fecha"
                   />
                 </div>
               </div>

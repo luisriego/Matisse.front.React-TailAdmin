@@ -6,8 +6,8 @@ import DataTable, { ColumnDef } from "../components/tables/DataTable";
 import { Account } from "../types/accountApi";
 import Switch from "../components/ui/Switch";
 import EditAccountModal from "../components/modal/EditAccountModal";
-import SetInitialBalanceModal from "../components/modal/SetInitialBalanceModal"; // Importar el nuevo modal
-import { PencilIcon, TrashBinIcon } from "../icons";
+import SetInitialBalanceModal from "../components/modal/SetInitialBalanceModal";
+import { PencilIcon, TrashBinIcon, DollarLineIcon } from "../icons"; // Importar DollarLineIcon de tus iconos
 
 export default function Accounts() {
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -17,8 +17,8 @@ export default function Accounts() {
   const [updatingAccountId, setUpdatingAccountId] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
-  const [isSetInitialBalanceModalOpen, setIsSetInitialBalanceModalOpen] = useState(false); // Nuevo estado
-  const [accountToSetInitialBalance, setAccountToSetInitialBalance] = useState<Account | null>(null); // Nuevo estado
+  const [isSetInitialBalanceModalOpen, setIsSetInitialBalanceModalOpen] = useState(false);
+  const [accountToSetInitialBalance, setAccountToSetInitialBalance] = useState<Account | null>(null);
 
   const fetchAccounts = async () => {
     setLoading(true);
@@ -52,18 +52,12 @@ export default function Accounts() {
 
       const balanceResults = await Promise.all(balancePromises);
 
-      setAccounts(currentAccounts => {
-        const updatedAccounts = [...currentAccounts];
-        balanceResults.forEach(balanceData => {
-          if (balanceData) {
-            const accountIndex = updatedAccounts.findIndex(acc => acc.id === balanceData.account_id);
-            if (accountIndex !== -1) {
-              updatedAccounts[accountIndex] = { ...updatedAccounts[accountIndex], balance: balanceData.balance };
-            }
-          }
-        });
-        return updatedAccounts;
+      const updatedAccounts = initialAccounts.map(account => {
+        const balanceData = balanceResults.find(b => b && b.account_id === account.id);
+        return balanceData ? { ...account, balance: balanceData.balance } : account;
       });
+      setAccounts(updatedAccounts);
+
       setLoadingBalances(false);
 
     } catch (error: any) {
@@ -108,11 +102,8 @@ export default function Accounts() {
       );
 
     } catch (error: any) {
-      // Revert the optimistic update on failure and notify the user
       setError("Failed to update account status. Please try again.");
       console.error("Failed to toggle account:", error);
-      // Optional: Add a user-facing error notification (e.g., a toast message)
-      // Re-fetch accounts to ensure UI consistency with the server state
       fetchAccounts();
     } finally {
       setUpdatingAccountId(null);
@@ -124,11 +115,7 @@ export default function Accounts() {
     setIsEditModalOpen(true);
   };
 
-  const handleOpenSetInitialBalanceModal = (account: Account) => { // Nueva función
-    if (account.balance !== undefined && account.balance !== null && account.balance !== 0) {
-      alert(`La cuenta '${account.name}' ya tiene un saldo inicial de ${(account.balance / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}. No se puede establecer otro.`);
-      return;
-    }
+  const handleOpenSetInitialBalanceModal = (account: Account) => {
     setAccountToSetInitialBalance(account);
     setIsSetInitialBalanceModalOpen(true);
   };
@@ -207,6 +194,15 @@ export default function Accounts() {
           <button onClick={() => handleOpenEditModal(account)} className="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white/90">
             <PencilIcon className="size-5" />
           </button>
+          {(account.balance === undefined || account.balance === null || account.balance === 0) && (
+            <button
+              onClick={() => handleOpenSetInitialBalanceModal(account)}
+              className="text-gray-500 hover:text-brand-500 dark:text-gray-400 dark:hover:text-brand-400"
+              title="Definir Saldo Inicial"
+            >
+              <DollarLineIcon className="size-5" />
+            </button>
+          )}
         </div>
       ),
     },
@@ -240,13 +236,15 @@ export default function Accounts() {
           onClose={() => setIsEditModalOpen(false)}
           account={selectedAccount}
           onAccountUpdate={fetchAccounts}
-          onOpenSetInitialBalance={handleOpenSetInitialBalanceModal} // Pasar la nueva prop
         />
-        <SetInitialBalanceModal // Nuevo modal
+        <SetInitialBalanceModal
           isOpen={isSetInitialBalanceModalOpen}
           onClose={() => setIsSetInitialBalanceModalOpen(false)}
           account={accountToSetInitialBalance}
-          onInitialBalanceSet={fetchAccounts}
+          onInitialBalanceSet={() => {
+            fetchAccounts();
+            setIsSetInitialBalanceModalOpen(false);
+          }}
         />
       </div>
     </>
