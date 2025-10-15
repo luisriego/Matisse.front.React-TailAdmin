@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import flatpickr from "flatpickr";
 import "flatpickr/dist/flatpickr.css";
+import monthSelectPlugin from "flatpickr/dist/plugins/monthSelect";
+import "flatpickr/dist/plugins/monthSelect/style.css";
 import Label from "./Label";
 import { CalenderIcon } from "../../icons";
 import Hook = flatpickr.Options.Hook;
@@ -8,7 +10,7 @@ import DateOption = flatpickr.Options.DateOption;
 
 type PropsType = {
   id: string;
-  mode?: "single" | "multiple" | "range" | "time";
+  mode?: "single" | "multiple" | "range" | "time" | "month";
   onChange?: Hook | Hook[];
   defaultDate?: DateOption;
   label?: string;
@@ -24,15 +26,25 @@ export default function DatePicker({
   placeholder,
 }: PropsType) {
   useEffect(() => {
-    const flatPickrInstance = flatpickr(`#${id}`, {
-      mode: mode || "single",
-      dateFormat: "Y-m-d",
+    const options: flatpickr.Options.Options = {
+      mode: mode === "month" ? "single" : mode || "single",
+      dateFormat: mode === "month" ? "Y-m" : "Y-m-d",
       defaultDate,
       onChange,
-    });
+    };
+
+    if (mode === "month") {
+      options.plugins = [
+        monthSelectPlugin({
+          shorthand: true, // e.g., "Jan"
+          altFormat: "F Y", // e.g., "January 2025"
+        }),
+      ];
+    }
+
+    const flatPickrInstance = flatpickr(`#${id}`, options);
 
     return () => {
-      // Cleanup: Destroy the flatpickr instance when the component unmounts
       if (flatPickrInstance) {
         flatPickrInstance.destroy();
       }

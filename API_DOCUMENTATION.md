@@ -250,9 +250,8 @@ Retrieves a single expense by its ID.
   "dueDate": "2023-11-15",
   "isActive": true,
   "description": "Monthly internet service",
-    "residentUnitId": "e4b8b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3e"
-  }
-]
+  "residentUnitId": "e4b8b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3e"
+}
 ```
 
 ### `PATCH /api/v1/expenses/update/{id}`
