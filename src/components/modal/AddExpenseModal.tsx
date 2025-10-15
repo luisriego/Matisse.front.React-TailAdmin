@@ -49,6 +49,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [hasPredefinedAmount, setHasPredefinedAmount] = useState(false);
 
   const currentMonth = new Date().getMonth() + 1;
 
@@ -79,8 +80,11 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       setLoading(false);
       setError(null);
       setSuccess(null);
+      setHasPredefinedAmount(false);
     }
   }, [isOpen]);
+
+  // ELIMINADO: El useEffect que causaba el comportamiento no deseado.
 
   const handleMonthChange = (month: number) => {
     setMonthsOfYear(prev =>
@@ -100,14 +104,6 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
         throw new Error("Token de autenticação não encontrado.");
       }
 
-      // const expenseData = {
-      //   description,
-      //   amount: Math.round(parseFloat(amount) * 100), // Enviar como centavos
-      //   expenseDate,
-      //   expenseTypeId,
-      //   residentUnitId: residentUnitId || null,
-      // };
-
       let endpoint = '/api/v1/expenses';
       let method = 'POST';
       let payload: any;
@@ -115,14 +111,22 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       if (isRecurring) {
         endpoint = '/api/v1/recurring-expenses/create';
         method = 'PUT';
+        const parsedAmount = parseFloat(amount);
+
+        // Validación: si hasPredefinedAmount está marcado pero el monto no es válido
+        if (hasPredefinedAmount && (isNaN(parsedAmount) || parsedAmount <= 0)) {
+            throw new Error("Debe ingresar un monto válido si 'Valor Predefinido?' está marcado.");
+        }
+
         payload = {
           id: uuidv4(),
-          amount: Math.round(parseFloat(amount) * 100),
+          amount: hasPredefinedAmount && !isNaN(parsedAmount) ? Math.round(parsedAmount * 100) : 0,
           type: expenseTypeId,
           accountId,
           dueDay: dueDay,
           monthsOfYear: monthsOfYear,
           description: description || null,
+          hasPredefinedAmount: hasPredefinedAmount, // Directamente el estado del checkbox
         };
       } else {
         payload = {
@@ -152,9 +156,9 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       }
 
       setSuccess('Despesa criada com sucesso!');
-      onExpenseAdded(); // Notifica o componente pai para recarregar as despesas
+      onExpenseAdded();
       setTimeout(() => {
-        onClose(); // Fecha o modal após um pequeno atraso
+        onClose();
       }, 1000);
     } catch (err: any) {
       setError(err.message);
@@ -194,30 +198,51 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
           <div className="custom-scrollbar h-[450px] overflow-y-auto px-2 pb-3">
             <div className="mt-7">
               <h5 className="mb-5 text-lg font-medium text-gray-800 dark:text-white/90 lg:mb-6">Detalhes da Despesa</h5>
-              <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
-                {/* <div className="sm:col-span-2">
-                  <label htmlFor="description" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Descrição {isRecurring && '(Opcional)'}</label>
-                  <input type="text" id="description" value={description} onChange={(e) => setDescription(e.target.value)} required={!isRecurring} className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800" />
-                </div> */}
+              <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-4"> 
 
-                <div>
+                <div className="sm:col-span-2"> 
                   <label htmlFor="amount" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Monto (R$)</label>
-                  <input type="number" id="amount" value={amount} onChange={(e) => setAmount(e.target.value)} required step="0.01" className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800" placeholder="150.50" />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      id="amount"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      required={!isRecurring} 
+                      step="0.01"
+                      className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+                      placeholder="150.50"
+                    />
+                  </div>
                 </div>
 
+                {isRecurring && (
+                  <div className="sm:col-span-1 flex items-end pb-1"> 
+                    <input
+                      type="checkbox"
+                      id="hasPredefinedAmount"
+                      checked={hasPredefinedAmount}
+                      onChange={(e) => setHasPredefinedAmount(e.target.checked)}
+                      disabled={!amount || parseFloat(amount) === 0} 
+                      className="w-4 h-4 text-brand-600 border-gray-300 rounded focus:ring-brand-500"
+                    />
+                    <label htmlFor="hasPredefinedAmount" className="ml-2 text-sm text-gray-700 dark:text-gray-400">Valor Predefinido?</label>
+                  </div>
+                )}
+
                 {isRecurring ? (
-                  <div>
-                    <label htmlFor="dueDay" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Dia do Vencimento</label>
+                  <div className="sm:col-span-1"> 
+                    <label htmlFor="dueDay" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Dia Vto.</label>
                     <input type="number" id="dueDay" value={dueDay} onChange={(e) => setDueDay(parseInt(e.target.value))} required min="1" max="31" className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800" />
                   </div>
                 ) : (
-                  <div>
+                  <div className="sm:col-span-2"> 
                     <label htmlFor="expenseDate" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Data da Despesa</label>
                     <input type="date" id="expenseDate" value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} required className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800" />
                   </div>
                 )}
 
-                <div>
+                <div className="sm:col-span-2"> 
                   <label htmlFor="expenseType" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Tipo de Despesa</label>
                   <select id="expenseType" value={expenseTypeId} onChange={(e) => setExpenseTypeId(e.target.value)} required className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800">
                     <option value="">Selecione um tipo</option>
@@ -225,7 +250,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                   </select>
                 </div>
 
-                <div>
+                <div className="sm:col-span-2"> 
                   <label htmlFor="account" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Conta</label>
                   <select id="account" value={accountId} onChange={(e) => setAccountId(e.target.value)} required className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800">
                     <option value="">Selecione uma conta</option>
@@ -236,32 +261,18 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
 
               {!isRecurring && (
                   <>
-                    <div className="sm:col-span-2 mt-5">
+                    <div className="sm:col-span-4 mt-5"> 
                       <label htmlFor="residentUnit" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Unidade Residencial (Opcional)</label>
                       <select id="residentUnit" value={residentUnitId} onChange={(e) => setResidentUnitId(e.target.value)} className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800">
                         <option value="">Nenhuma / Geral</option>
                         {residentUnits.map(unit => <option key={unit.id} value={unit.id}>{unit.unit}</option>)}
                       </select>
                     </div>
-                    {/* <div className="flex items-center gap-4">
-                      <label htmlFor="isActive" className="text-sm font-medium text-gray-700 dark:text-gray-400">Ativa</label>
-                      <div className="relative">
-                        <input
-                          type="checkbox"
-                          id="isActive"
-                          className="peer sr-only"
-                          checked={isActive}
-                          onChange={(e) => setIsActive(e.target.checked)}
-                        />
-                        <div className="h-5 w-10 rounded-full bg-gray-300 shadow-inner peer-checked:bg-brand-500 dark:bg-gray-700"></div>
-                        <div className="dot absolute -left-1 -top-1 h-7 w-7 rounded-full bg-white shadow-switch-1 transition peer-checked:translate-x-full"></div>
-                      </div>
-                    </div> */}
                   </>
                 )}
 
                 {isRecurring && (
-                  <div className="sm:col-span-2 mt-5">
+                  <div className="sm:col-span-4 mt-5"> 
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-400">Meses de Recorrência</label>
                       <div className="flex items-center">
@@ -304,8 +315,8 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                   </div>
                 )}
             </div>
-            <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
-                <div className="sm:col-span-2 mt-5">
+            <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-4"> 
+                <div className="sm:col-span-4 mt-5">
                   <label htmlFor="description" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Descrição {isRecurring && '(Opcional)'}</label>
                   <input type="text" id="description" value={description} onChange={(e) => setDescription(e.target.value)} required={!isRecurring} className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800" />
                 </div>

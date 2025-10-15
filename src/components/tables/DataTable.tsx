@@ -38,10 +38,10 @@ export default function DataTable<T extends { id: string | number }>({ data, col
           </TableHeader>
 
           <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
-            {data.map((row) => (
-              <TableRow key={row.id}>
+            {data.map((row, index) => (
+              <TableRow key={row.id ? String(row.id) : `row-${index}`}>
                 {columns.map((column) => (
-                  <TableCell key={column.key} className={`px-5 py-4 sm:px-6 text-start ${column.className || ''}`}>
+                  <TableCell key={`${row.id ? String(row.id) : `row-${index}`}-${column.key}`} className={`px-5 py-4 sm:px-6 text-start ${column.className || ''}`}>
                     {column.cell(row)}
                   </TableCell>
                 ))}

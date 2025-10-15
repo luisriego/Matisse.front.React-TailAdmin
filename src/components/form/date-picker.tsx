@@ -24,18 +24,17 @@ export default function DatePicker({
   placeholder,
 }: PropsType) {
   useEffect(() => {
-    const flatPickr = flatpickr(`#${id}`, {
+    const flatPickrInstance = flatpickr(`#${id}`, {
       mode: mode || "single",
-      static: true,
-      monthSelectorType: "static",
       dateFormat: "Y-m-d",
       defaultDate,
       onChange,
     });
 
     return () => {
-      if (!Array.isArray(flatPickr)) {
-        flatPickr.destroy();
+      // Cleanup: Destroy the flatpickr instance when the component unmounts
+      if (flatPickrInstance) {
+        flatPickrInstance.destroy();
       }
     };
   }, [mode, onChange, id, defaultDate]);
