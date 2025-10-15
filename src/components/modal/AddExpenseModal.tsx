@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Modal } from '../ui/modal';
 import { v4 as uuidv4 } from 'uuid';
 import SuccessAlert from '../common/alerts/SuccessAlert';
 import ErrorAlert from '../common/alerts/ErrorAlert';
+import DatePicker from '../form/date-picker'; // Import the custom date picker
+import { Hook } from 'flatpickr/dist/types/options'; // Import Hook type
 
 interface ExpenseType {
   id: string;
@@ -39,7 +41,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   const [isRecurring, setIsRecurring] = useState(false);
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
-  const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split('T')[0]);
+  const [expenseDate, setExpenseDate] = useState<Date | null>(new Date()); // Changed to Date object
   const [expenseTypeId, setExpenseTypeId] = useState('');
   const [accountId, setAccountId] = useState('');
   const [residentUnitId, setResidentUnitId] = useState('');
@@ -70,7 +72,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       setIsRecurring(false);
       setDescription('');
       setAmount('');
-      setExpenseDate(new Date().toISOString().split('T')[0]);
+      setExpenseDate(new Date()); // Reset to Date object
       setExpenseTypeId('');
       setAccountId('');
       setResidentUnitId('');
@@ -84,7 +86,13 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
     }
   }, [isOpen]);
 
-  // ELIMINADO: El useEffect que causaba el comportamiento no deseado.
+  const handleDateChange: Hook = useCallback((selectedDates) => {
+    if (selectedDates.length > 0) {
+      setExpenseDate(selectedDates[0]);
+    } else {
+      setExpenseDate(null);
+    }
+  }, []);
 
   const handleMonthChange = (month: number) => {
     setMonthsOfYear(prev =>
@@ -129,11 +137,14 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
           hasPredefinedAmount: hasPredefinedAmount, // Directamente el estado del checkbox
         };
       } else {
+        if (!expenseDate) {
+          throw new Error("Por favor, selecione a data da despesa.");
+        }
         payload = {
           id: uuidv4(),
           description,
           amount: Math.round(parseFloat(amount) * 100),
-          dueDate: expenseDate,
+          dueDate: expenseDate.toISOString().split('T')[0], // Format Date object to YYYY-MM-DD
           type: expenseTypeId,
           accountId,
           isActive,
@@ -237,8 +248,13 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                   </div>
                 ) : (
                   <div className="sm:col-span-2"> 
-                    <label htmlFor="expenseDate" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Data da Despesa</label>
-                    <input type="date" id="expenseDate" value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} required className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800" />
+                    <DatePicker
+                      id="expense-date"
+                      label="Data da Despesa"
+                      onChange={handleDateChange}
+                      defaultDate={expenseDate || new Date()}
+                      placeholder="Selecione a data"
+                    />
                   </div>
                 )}
 
