@@ -28,6 +28,7 @@ interface AddExpenseModalProps {
   expenseTypes: ExpenseType[];
   residentUnits: ResidentUnit[];
   accounts: Account[];
+  startAsRecurring?: boolean; // New optional prop
 }
 
 const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
@@ -37,11 +38,12 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   expenseTypes,
   residentUnits,
   accounts,
+  startAsRecurring = false, // Default to false
 }) => {
-  const [isRecurring, setIsRecurring] = useState(false);
+  const [isRecurring, setIsRecurring] = useState(startAsRecurring);
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
-  const [expenseDate, setExpenseDate] = useState<Date | null>(new Date()); // Changed to Date object
+  const [expenseDate, setExpenseDate] = useState<Date | null>(new Date());
   const [expenseTypeId, setExpenseTypeId] = useState('');
   const [accountId, setAccountId] = useState('');
   const [residentUnitId, setResidentUnitId] = useState('');
@@ -66,13 +68,13 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
     }
   };
 
-  // Limpa o formulário quando o modal é fechado
+  // Limpa o formulário quando o modal é fechado o se abre con un nuevo estado inicial
   useEffect(() => {
     if (!isOpen) {
-      setIsRecurring(false);
+      setIsRecurring(startAsRecurring);
       setDescription('');
       setAmount('');
-      setExpenseDate(new Date()); // Reset to Date object
+      setExpenseDate(new Date());
       setExpenseTypeId('');
       setAccountId('');
       setResidentUnitId('');
@@ -83,8 +85,11 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       setError(null);
       setSuccess(null);
       setHasPredefinedAmount(false);
+    } else {
+      // When modal opens, set initial isRecurring state based on prop
+      setIsRecurring(startAsRecurring);
     }
-  }, [isOpen]);
+  }, [isOpen, startAsRecurring]);
 
   const handleDateChange: Hook = useCallback((selectedDates) => {
     if (selectedDates.length > 0) {
@@ -121,7 +126,6 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
         method = 'PUT';
         const parsedAmount = parseFloat(amount);
 
-        // Validación: si hasPredefinedAmount está marcado pero el monto no es válido
         if (hasPredefinedAmount && (isNaN(parsedAmount) || parsedAmount <= 0)) {
             throw new Error("Debe ingresar un monto válido si 'Valor Predefinido?' está marcado.");
         }
@@ -134,7 +138,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
           dueDay: dueDay,
           monthsOfYear: monthsOfYear,
           description: description || null,
-          hasPredefinedAmount: hasPredefinedAmount, // Directamente el estado del checkbox
+          hasPredefinedAmount: hasPredefinedAmount,
         };
       } else {
         if (!expenseDate) {
@@ -144,7 +148,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
           id: uuidv4(),
           description,
           amount: Math.round(parseFloat(amount) * 100),
-          dueDate: expenseDate.toISOString().split('T')[0], // Format Date object to YYYY-MM-DD
+          dueDate: expenseDate.toISOString().split('T')[0],
           type: expenseTypeId,
           accountId,
           isActive,
@@ -273,10 +277,8 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                     {accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
                   </select>
                 </div>
-              </div>
 
-              {!isRecurring && (
-                  <>
+                {!isRecurring && (
                     <div className="sm:col-span-4 mt-5"> 
                       <label htmlFor="residentUnit" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Unidade Residencial (Opcional)</label>
                       <select id="residentUnit" value={residentUnitId} onChange={(e) => setResidentUnitId(e.target.value)} className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800">
@@ -284,7 +286,6 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                         {residentUnits.map(unit => <option key={unit.id} value={unit.id}>{unit.unit}</option>)}
                       </select>
                     </div>
-                  </>
                 )}
 
                 {isRecurring && (
@@ -330,14 +331,13 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                     </div>
                   </div>
                 )}
-            </div>
-            <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-4"> 
+                
                 <div className="sm:col-span-4 mt-5">
                   <label htmlFor="description" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Descrição {isRecurring && '(Opcional)'}</label>
                   <input type="text" id="description" value={description} onChange={(e) => setDescription(e.target.value)} required={!isRecurring} className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800" />
                 </div>
+              </div>
             </div>
-
           </div>
           {error && <ErrorAlert message={error} />}
           {success && <SuccessAlert message={success} />}
