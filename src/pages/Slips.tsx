@@ -518,31 +518,36 @@ const Slips: React.FC = () => {
       <div className="space-y-6">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           <div className="lg:col-span-1">
-            <ComponentCard title="Gerar Boletos Mensais">
-              <div className="grid grid-cols-1 gap-y-4 mb-6">
-                <div>
-                  <DatePicker
-                    id="slip-generation-month"
-                    label="Mes y Año"
-                    onChange={handleMonthChange}
-                    defaultDate={targetMonth || new Date()}
-                    mode="month"
-                    placeholder="Selecione o mês"
-                  />
+            <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] h-full flex flex-col">
+                <div className="px-6 py-5">
+                    <h3 className="text-base font-medium text-gray-800 dark:text-white/90">Gerar Boletos Mensais</h3>
                 </div>
-                <div>
-                  <button
-                    onClick={handleGenerateSlips}
-                    disabled={loading || !targetMonth}
-                    className="inline-flex items-center justify-center gap-2 px-4 py-3 text-sm transition bg-brand-500 rounded-lg shadow-theme-xs text-white hover:bg-brand-600 disabled:bg-brand-300 w-full"
-                  >
-                    {loading ? 'Gerando...' : 'Gerar Boletos'}
-                  </button>
+                <div className="p-4 sm:p-6 border-t border-gray-100 dark:border-gray-800 flex-grow flex flex-col">
+                    <div className="flex-grow">
+                        <DatePicker
+                            id="slip-generation-month"
+                            label="Mes y Año"
+                            onChange={handleMonthChange}
+                            defaultDate={targetMonth || new Date()}
+                            mode="month"
+                            placeholder="Selecione o mês"
+                        />
+                    </div>
+                    <div>
+                        <div className="mb-4">
+                            {error && <ErrorAlert message={error} />}
+                            {success && <SuccessAlert message={success} />}
+                        </div>
+                        <button
+                            onClick={handleGenerateSlips}
+                            disabled={loading || !targetMonth}
+                            className="inline-flex items-center justify-center gap-2 px-4 py-3 text-sm transition bg-brand-500 rounded-lg shadow-theme-xs text-white hover:bg-brand-600 disabled:bg-brand-300 w-full"
+                        >
+                            {loading ? 'Gerando...' : 'Gerar Boletos'}
+                        </button>
+                    </div>
                 </div>
-              </div>
-              {error && <ErrorAlert message={error} />}
-              {success && <SuccessAlert message={success} />}
-            </ComponentCard>
+            </div>
           </div>
           <div className="lg:col-span-3">
             <ComponentCard
@@ -563,20 +568,27 @@ const Slips: React.FC = () => {
               ) : (
                 <div className="flex gap-6">
                   <div className="w-1/3 sm:w-1/4">
-                    <ul className="flex flex-col rounded-lg border border-gray-200 dark:border-gray-700">
-                      {gasReadings.map((reading) => (
-                        <li key={reading.residentUnitId} className="border-b border-gray-200 last:border-b-0 dark:border-gray-700">
-                          <button
-                            onClick={() => setSelectedUnitId(reading.residentUnitId)}
-                            className={`flex w-full items-center gap-3 px-3 py-2.5 text-sm font-medium ${selectedUnitId === reading.residentUnitId
+                    <div className="w-full overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
+                      <ul className="flex flex-col">
+                        {gasReadings.map((reading) => (
+                          <li key={reading.residentUnitId} className="border-b border-gray-200 last:border-b-0 dark:border-gray-800">
+                            <button
+                              onClick={() => setSelectedUnitId(reading.residentUnitId)}
+                              className={`flex w-full items-center gap-3 px-3 py-2.5 text-sm font-medium ${selectedUnitId === reading.residentUnitId
                                 ? 'bg-brand-50 text-brand-600 dark:bg-brand-500/[0.12] dark:text-brand-400'
-                                : 'text-gray-500 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-white/[0.05]'
+                                : 'text-gray-500 hover:bg-brand-50 hover:text-brand-500 dark:text-gray-400 dark:hover:bg-brand-500/[0.12] dark:hover:text-brand-400'
                               }`}>
-                            <span>{`Apto. ${reading.unit}`}</span>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
+                              <span>
+                                <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" clipRule="evenodd" d="M12.2989 1.12891C11.4706 1.12891 10.799 1.80033 10.7989 2.62867L10.7988 3.1264V3.12659L10.799 4.87507H6.14518C3.60237 4.87507 1.54102 6.93642 1.54102 9.47923V14.3207C1.54102 15.4553 2.46078 16.3751 3.59536 16.3751H6.14518H9.99935H16.2077C17.4503 16.3751 18.4577 15.3677 18.4577 14.1251V10.1251C18.4577 7.22557 16.1072 4.87507 13.2077 4.87507H12.299L12.2989 3.87651H13.7503C14.509 3.87651 15.124 3.26157 15.1242 2.50293C15.1243 1.74411 14.5092 1.12891 13.7503 1.12891H12.2989ZM3.04102 9.47923C3.04102 7.76485 4.4308 6.37507 6.14518 6.37507C7.85957 6.37507 9.24935 7.76485 9.24935 9.47923V14.8751H6.14518H3.59536C3.28921 14.8751 3.04102 14.6269 3.04102 14.3207V9.47923ZM10.7493 9.47923V14.8751H16.2077C16.6219 14.8751 16.9577 14.5393 16.9577 14.1251V10.1251C16.9577 8.054 15.2788 6.37507 13.2077 6.37507H9.54559C10.2933 7.19366 10.7493 8.28319 10.7493 9.47923Z" />
+                                </svg>
+                              </span>
+                              <span>{`Apto. ${reading.unit}`}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
 
                   <div className="flex-grow">
