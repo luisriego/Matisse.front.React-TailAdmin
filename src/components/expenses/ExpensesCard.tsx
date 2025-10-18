@@ -1,25 +1,7 @@
 import React from 'react';
 import ComponentCard from '../common/ComponentCard';
 import DataTable, { ColumnDef } from '../tables/DataTable';
-
-// Consider moving these interfaces to a shared types file
-interface ExpenseType {
-  id: string;
-  name: string;
-}
-
-interface Expense {
-  id: string;
-  description: string;
-  amount: number;
-  dueDate: string;
-  paidAt: string | null;
-  createdAt: string;
-  residentUnitId: string | null;
-  expenseType: ExpenseType;
-  hasPredefinedAmount: boolean;
-  accountId: string | null;
-}
+import { Expense } from '../../types'; // Corregido: Ruta de importación
 
 interface ExpensesCardProps {
   title: string;
