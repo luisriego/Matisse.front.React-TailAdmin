@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback } from "react";
 import PageMeta from '../components/common/PageMeta';
 import PageBreadcrumb from '../components/common/PageBreadCrumb';
-import ComponentCard from '../components/common/ComponentCard';
-import DataTable, { ColumnDef } from '../components/tables/DataTable';
-import AddExpenseModal from '../components/modal/AddExpenseModal'; // Corrected path if it was wrong
+import { ColumnDef } from '../components/tables/DataTable';
+import AddExpenseModal from '../components/modal/AddExpenseModal';
+import ExpensesCard from "../components/expenses/ExpensesCard";
 
 interface ExpenseType {
   id: string;
   name: string;
+  distributionMethod?: string; // Added distributionMethod
 }
 
 interface ResidentUnit {
@@ -30,6 +31,8 @@ interface Expense {
   createdAt: string;
   residentUnitId: string | null;
   expenseType: ExpenseType;
+  hasPredefinedAmount: boolean; // Added for compatibility with ExpensesCard
+  accountId: string | null; // Added for compatibility with ExpensesCard
 }
 
 interface ApiExpense {
@@ -47,6 +50,7 @@ interface ApiExpense {
     description: string;
     distributionMethod: string;
   };
+  accountId: string | null;
 }
 
 // Interfaz para la respuesta de la API de unidades
@@ -135,7 +139,13 @@ const Expenses: React.FC = () => {
         dueDate: exp.dueDate.date,
         paidAt: exp.paidAt ? exp.paidAt.date : null,
         createdAt: exp.createdAt.date,
-        expenseType: exp.type,
+        expenseType: {
+          id: exp.type.id,
+          name: exp.type.name,
+          distributionMethod: exp.type.distributionMethod, // Ensure distributionMethod is passed
+        },
+        hasPredefinedAmount: true, // Assuming all fetched expenses are confirmed
+        accountId: exp.accountId,
       }));
 
       setExpenses(formattedExpenses);
@@ -156,9 +166,19 @@ const Expenses: React.FC = () => {
     {
       key: 'expenseType',
       header: 'Tipo',
-      className: 'w-1/3',
+      className: 'w-1/5',
       cell: (expense) => (
         <span className="font-medium text-gray-800 text-theme-sm dark:text-white/90">{expense.expenseType?.name || 'Não especificado'}</span>
+      ),
+    },
+    {
+      key: 'distributionMethod',
+      header: 'Método de Distribuição',
+      className: 'w-1/5',
+      cell: (expense) => (
+        <span className="text-gray-500 text-theme-sm dark:text-gray-400">
+          {expense.expenseType?.distributionMethod || 'N/A'}
+        </span>
       ),
     },
     {
@@ -216,25 +236,14 @@ const Expenses: React.FC = () => {
       <PageBreadcrumb pageTitle="Despesas" />
 
       <div className="space-y-6">
-        <ComponentCard
+        <ExpensesCard
           title="Todas as despesas do mês atual"
-          headerContent={
-            <button onClick={() => setIsAddModalOpen(true)} className="inline-flex items-center justify-center gap-2 px-4 py-3 text-sm transition bg-brand-500 rounded-lg shadow-theme-xs text-white hover:bg-brand-600 disabled:bg-brand-300">
-              Novo Gasto
-              <span className="flex items-center">+</span>
-            </button> 
-          }
-        >
-          {loadingExpenses ? (
-            <p className="text-center">Carregando despesas...</p>
-          ) : expensesError ? (
-            <p className="text-center text-error-500">{expensesError}</p>
-          ) : expenses.length === 0 ? (
-            <p className="text-center text-gray-500 dark:text-gray-400">Nenhuma despesa registrada ainda.</p>
-          ) : (
-            <DataTable columns={columns} data={expenses} />
-          )}
-        </ComponentCard>
+          expenses={expenses}
+          columns={columns}
+          loading={loadingExpenses}
+          error={expensesError}
+          onAddExpense={() => setIsAddModalOpen(true)}
+        />
 
         <AddExpenseModal
           isOpen={isAddModalOpen}

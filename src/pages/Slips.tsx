@@ -15,6 +15,7 @@ import ExpensesCard from "../components/expenses/ExpensesCard";
 interface ExpenseType {
   id: string;
   name: string;
+  distributionMethod: string; // Made required
 }
 
 interface ResidentUnit {
@@ -48,7 +49,13 @@ interface ApiActiveExpense {
   paidAt: { date: string } | null;
   createdAt: { date: string };
   residentUnitId: string | null;
-  type: ExpenseType;
+  type: { // Explicitly define type structure here
+    id: string;
+    code: string;
+    name: string;
+    description: string;
+    distributionMethod: string;
+  };
   accountId: string | null;
 }
 
@@ -120,10 +127,10 @@ const Slips: React.FC = () => {
         if (!accountsRes.ok) throw new Error('Falha ao carregar contas.');
 
         const expenseTypesData: ExpenseType[] = await typesRes.json();
+        setExpenseTypes(expenseTypesData);
         const unitsData: ResidentUnit[] = await unitsRes.json();
         const accountsData = await accountsRes.json();
 
-        setExpenseTypes(expenseTypesData);
         setResidentUnits(unitsData);
         setAccounts(accountsData.accounts || []);
 
@@ -162,6 +169,7 @@ const Slips: React.FC = () => {
         if (!exp.hasPredefinedAmount) {
           initialEditableAmounts[exp.id] = exp.amount === 0 ? '' : (exp.amount / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
         }
+        const foundExpenseType = expenseTypes.find(type => type.id === exp.type);
         return {
           id: exp.id,
           description: exp.description,
@@ -170,7 +178,7 @@ const Slips: React.FC = () => {
           paidAt: null,
           createdAt: new Date().toISOString(),
           residentUnitId: null,
-          expenseType: expenseTypes.find(type => type.id === exp.type) || { id: exp.type, name: 'Tipo Desconhecido' },
+          expenseType: foundExpenseType || { id: exp.type, name: 'Tipo Desconhecido', distributionMethod: 'Não disponível' },
           hasPredefinedAmount: exp.hasPredefinedAmount,
           accountId: exp.accountId,
         };
@@ -187,7 +195,11 @@ const Slips: React.FC = () => {
         paidAt: exp.paidAt ? exp.paidAt.date : null,
         createdAt: exp.createdAt.date,
         residentUnitId: exp.residentUnitId,
-        expenseType: exp.type,
+        expenseType: {
+          id: exp.type.id,
+          name: exp.type.name,
+          distributionMethod: exp.type.distributionMethod,
+        },
         hasPredefinedAmount: true,
         accountId: exp.accountId,
       }));
@@ -376,6 +388,16 @@ const Slips: React.FC = () => {
   // --- COLUMN DEFINITIONS ---
   const expenseColumns: ColumnDef<Expense>[] = [
     { key: 'expenseType', header: 'Tipo', className: 'w-1/5', cell: (expense) => <span className="font-medium text-gray-800 text-theme-sm dark:text-white/90">{expense.expenseType?.name || 'Não especificado'}</span> },
+    {
+      key: 'distributionMethod',
+      header: 'Método de Distribuição',
+      className: 'w-1/5',
+      cell: (expense) => (
+        <span className="text-gray-500 text-theme-sm dark:text-gray-400">
+          {expense.expenseType?.distributionMethod || 'N/A'}
+        </span>
+      ),
+    },
     { key: 'description', header: 'Descrição', className: 'w-2/5', cell: (expense) => <span className="text-gray-500 text-theme-sm dark:text-gray-400">{expense.description}</span> },
     {
         key: 'status',
