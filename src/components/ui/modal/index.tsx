@@ -6,8 +6,9 @@ interface ModalProps {
   className?: string;
   title?: string;
   children: React.ReactNode;
-  showCloseButton?: boolean; // New prop to control close button visibility
-  isFullscreen?: boolean; // Default to false for backwards compatibility
+  showCloseButton?: boolean;
+  isFullscreen?: boolean;
+  widthClass?: string; // New prop for width control
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -16,8 +17,9 @@ export const Modal: React.FC<ModalProps> = ({
   children,
   title,
   className,
-  showCloseButton = true, // Default to true for backwards compatibility
+  showCloseButton = true,
   isFullscreen = false,
+  widthClass = "max-w-lg", // Default width if not specified
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -53,7 +55,7 @@ export const Modal: React.FC<ModalProps> = ({
 
   const contentClasses = isFullscreen
     ? "w-full h-full"
-    : "relative w-full rounded-3xl bg-white  dark:bg-gray-900";
+    : `relative w-full ${widthClass} rounded-3xl bg-white dark:bg-gray-900`;
 
   return (
     <div className="fixed inset-0 flex items-center justify-center overflow-y-auto modal z-99999">

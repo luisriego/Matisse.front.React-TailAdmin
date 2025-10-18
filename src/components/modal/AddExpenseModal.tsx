@@ -3,8 +3,8 @@ import { Modal } from '../ui/modal';
 import { v4 as uuidv4 } from 'uuid';
 import SuccessAlert from '../common/alerts/SuccessAlert';
 import ErrorAlert from '../common/alerts/ErrorAlert';
-import DatePicker from '../form/date-picker'; // Import the custom date picker
-import { Hook } from 'flatpickr/dist/types/options'; // Import Hook type
+import DatePicker from '../form/date-picker';
+import { Hook } from 'flatpickr/dist/types/options';
 
 interface ExpenseType {
   id: string;
@@ -47,7 +47,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   const [expenseTypeId, setExpenseTypeId] = useState('');
   const [accountId, setAccountId] = useState('');
   const [residentUnitId, setResidentUnitId] = useState('');
-  const [dueDay, setDueDay] = useState<number | ''>('');
+  const [dueDay, setDueDay] = useState<number | ''>( '');
   const [monthsOfYear, setMonthsOfYear] = useState<number[]>([]);
   const [isActive, setIsActive] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -183,12 +183,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} className="w-3/4 max-w-[700px]">
-      <div className="no-scrollbar relative overflow-y-auto rounded-3xl bg-white p-4 dark:bg-gray-900 lg:p-11">
-        <div className="px-2 pr-14">
-          <h4 className="mb-2 text-2xl font-semibold text-gray-800 dark:text-white/90">Registrar Nova Despesa</h4>
-          <p className="mb-6 text-sm text-gray-500 dark:text-gray-400 lg:mb-7">Preencha os dados para adicionar uma nova despesa.</p>
-        </div>
+    <Modal isOpen={isOpen} onClose={onClose} title="Registrar Nova Despesa" widthClass="max-w-3xl">
         <div className="mb-6 flex items-center gap-2 rounded-lg bg-gray-100 p-1.5 dark:bg-gray-800">
           <button
             type="button"
@@ -348,7 +343,6 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
             </button>
           </div>
         </form>
-      </div>
     </Modal>
   );
 };
