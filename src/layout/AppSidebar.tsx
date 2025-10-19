@@ -54,6 +54,11 @@ const navItems: NavItem[] = [
     path: "/despesas",
   },
   {
+    icon: <ListIcon />,
+    name: "Gastos Recorrentes",
+    path: "/recurring-expenses",
+  },
+  {
     icon: <GridIcon />,
     name: "Unidades Residenciais",
     path: "/unidades-residenciais",
