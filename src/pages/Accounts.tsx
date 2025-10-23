@@ -7,7 +7,8 @@ import { Account } from "../types/accountApi";
 import Switch from "../components/ui/Switch";
 import EditAccountModal from "../components/modal/EditAccountModal";
 import SetInitialBalanceModal from "../components/modal/SetInitialBalanceModal";
-import { PencilIcon, TrashBinIcon, DollarLineIcon } from "../icons"; // Importar DollarLineIcon de tus iconos
+import AddAccountModal from "../components/modal/AddAccountModal"; // Import the new modal
+import { PencilIcon, TrashBinIcon, DollarLineIcon } from "../icons";
 
 export default function Accounts() {
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -19,6 +20,7 @@ export default function Accounts() {
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [isSetInitialBalanceModalOpen, setIsSetInitialBalanceModalOpen] = useState(false);
   const [accountToSetInitialBalance, setAccountToSetInitialBalance] = useState<Account | null>(null);
+  const [isAddAccountModalOpen, setIsAddAccountModalOpen] = useState(false); // State for the new modal
 
   const fetchAccounts = async () => {
     setLoading(true);
@@ -118,6 +120,10 @@ export default function Accounts() {
   const handleOpenSetInitialBalanceModal = (account: Account) => {
     setAccountToSetInitialBalance(account);
     setIsSetInitialBalanceModalOpen(true);
+  };
+
+  const handleOpenAddAccountModal = () => {
+    setIsAddAccountModalOpen(true);
   };
 
   const columns: ColumnDef<Account>[] = [
@@ -228,7 +234,18 @@ export default function Accounts() {
       />
       <PageBreadcrumb pageTitle="Contas" />
       <div className="space-y-6">
-        <ComponentCard title="Todas as Contas">
+        <ComponentCard 
+          title="Todas as Contas"
+          headerContent={
+            <button
+              onClick={handleOpenAddAccountModal}
+              className="inline-flex items-center justify-center gap-2 px-4 py-3 text-sm transition bg-brand-500 rounded-lg shadow-theme-xs text-white hover:bg-brand-600 disabled:bg-brand-300"
+            >
+              Nova Conta
+              <span className="flex items-center">+</span>
+            </button>
+          }
+        >
           {renderContent()}
         </ComponentCard>
         <EditAccountModal
@@ -244,6 +261,14 @@ export default function Accounts() {
           onInitialBalanceSet={() => {
             fetchAccounts();
             setIsSetInitialBalanceModalOpen(false);
+          }}
+        />
+        <AddAccountModal
+          isOpen={isAddAccountModalOpen}
+          onClose={() => setIsAddAccountModalOpen(false)}
+          onAccountAdded={() => {
+            fetchAccounts();
+            setIsAddAccountModalOpen(false);
           }}
         />
       </div>

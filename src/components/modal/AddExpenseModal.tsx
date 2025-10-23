@@ -206,7 +206,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
         </div>
         <form className="flex flex-col" onSubmit={handleSubmit}>
           <div className="custom-scrollbar h-[450px] overflow-y-auto px-2 pb-3">
-            <div className="mt-7">
+            <div className="mt-1">
               <h5 className="mb-5 text-lg font-medium text-gray-800 dark:text-white/90 lg:mb-6">Detalhes da Despesa</h5>
               <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-4"> 
 
