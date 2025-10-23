@@ -3,6 +3,7 @@ import PageMeta from '../components/common/PageMeta';
 import PageBreadcrumb from '../components/common/PageBreadCrumb';
 import { Hook } from 'flatpickr/dist/types/options';
 import AddGasConsumptionModal from "../components/modal/AddGasConsumptionModal";
+import ConfirmationModal from "../components/modal/ConfirmationModal"; // Import the new modal
 import SlipSettings from "../components/slips/SlipSettings";
 import GasConsumptionCard from "../components/gas/GasConsumptionCard";
 import GenerateSlipsCard from "../components/slips/GenerateSlipsCard";
@@ -27,6 +28,12 @@ const Slips: React.FC = () => {
   const [extraFee, setExtraFee] = useState('');
   const [reserveFund, setReserveFund] = useState('');
   const [gasUnitPrice, setGasUnitPrice] = useState('5,00'); // Default value
+
+  // Confirmation Modal State
+  const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
+  const [confirmationModalContent, setConfirmationModalContent] = useState({ title: '', message: '' });
+  const [isGenerating, setIsGenerating] = useState(false);
+
 
   // --- DATA FETCHING ---
   useEffect(() => {
@@ -81,19 +88,72 @@ const Slips: React.FC = () => {
     setSuccess(null);
 
     if (!targetMonth) {
-      setError("Por favor, selecione um mês y año para generar los boletos.");
+      setError("Por favor, selecione um mês e ano para gerar os boletos.");
       setLoading(false);
       return;
     }
 
     try {
       const token = localStorage.getItem("token");
-      if (!token) {
-        throw new Error("Token de autenticação não encontrado.");
+      if (!token) throw new Error("Token de autenticação não encontrado.");
+
+      const checkTotalResponse = await fetch('/api/v1/slips/check-total', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ amount: 400000 }), // Example amount
+      });
+
+      if (checkTotalResponse.ok) {
+        const checkTotalData = await checkTotalResponse.json();
+        if (checkTotalData.status === 'alert_generated') {
+          setConfirmationModalContent({
+            title: 'Alerta de Contabilidade',
+            message: checkTotalData.message,
+          });
+          setIsConfirmationModalOpen(true);
+          // Don't proceed until user confirms
+          return;
+        } else {
+          // If no alert, proceed directly
+          await proceedWithGeneration();
+        }
+      } else {
+        // If check-total fails, log error but proceed as a fallback
+        console.error("Error with check-total endpoint, proceeding with generation.");
+        await proceedWithGeneration();
       }
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Ocorreu um erro desconhecido.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const proceedWithGeneration = async (force = false) => {
+    setIsGenerating(true);
+    setError(null);
+    setSuccess(null);
+
+    if (!targetMonth) {
+      // This should not happen if called from handleGenerateSlips
+      setError("Mês alvo não selecionado.");
+      setIsGenerating(false);
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) throw new Error("Token de autenticação não encontrado.");
 
       const year = targetMonth.getFullYear();
-      const month = targetMonth.getMonth() + 1; // getMonth() is 0-indexed
+      const month = targetMonth.getMonth() + 1;
       const formattedMonth = `${year}-${month.toString().padStart(2, '0')}`;
 
       const parseCurrency = (value: string) => {
@@ -110,7 +170,7 @@ const Slips: React.FC = () => {
         },
         body: JSON.stringify({
           targetMonth: formattedMonth,
-          force: false,
+          force,
           extraFee: parseCurrency(extraFee),
           reserveFund: parseCurrency(reserveFund),
         }),
@@ -129,9 +189,12 @@ const Slips: React.FC = () => {
         setError('Ocorreu um erro desconhecido ao gerar os boletos.');
       }
     } finally {
-      setLoading(false);
+      setIsGenerating(false);
+      setIsConfirmationModalOpen(false); // Close modal on completion
+      setLoading(false); // Also turn off the main loading state
     }
   };
+
 
   const handleOpenGasModal = (reading: GasReading) => {
     setSelectedGasReading(reading);
@@ -164,7 +227,7 @@ const Slips: React.FC = () => {
             targetMonth={targetMonth}
             onMonthChange={handleMonthChange}
             onGenerate={handleGenerateSlips}
-            loading={loading}
+            loading={loading || isGenerating} // Show loading state from both processes
             error={error}
             success={success}
             className="lg:col-span-3 h-full"
@@ -202,6 +265,20 @@ const Slips: React.FC = () => {
         gasReading={selectedGasReading}
         gasUnitPrice={gasUnitPrice}
         onSave={handleSaveGasConsumption}
+      />
+
+      <ConfirmationModal
+        isOpen={isConfirmationModalOpen}
+        onClose={() => {
+          setIsConfirmationModalOpen(false);
+          setLoading(false); // Stop loading if user cancels
+        }}
+        onConfirm={() => proceedWithGeneration(true)} // Pass force=true on confirmation
+        title={confirmationModalContent.title}
+        message={confirmationModalContent.message}
+        confirmText="Gerar Mesmo Assim"
+        cancelText="Cancelar"
+        isLoading={isGenerating}
       />
     </>
   );
