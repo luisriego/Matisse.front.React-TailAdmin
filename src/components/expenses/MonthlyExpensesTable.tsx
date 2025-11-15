@@ -257,7 +257,7 @@ const MonthlyExpensesTable: React.FC<MonthlyExpensesTableProps> = ({
         {
             key: 'amount',
             header: 'Monto',
-            className: 'w-1/5',
+            className: 'w-1/5 text-right',
             cell: (expense) => {
                 if (expense.hasPredefinedAmount) {
                     return <span className="text-gray-800 text-theme-sm dark:text-white/90">{(expense.amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>;
@@ -288,7 +288,7 @@ const MonthlyExpensesTable: React.FC<MonthlyExpensesTableProps> = ({
     return (
         <>
             <ExpensesCard
-                title="Gastos del mes"
+                title="Despesas do Mês"
                 expenses={allExpenses}
                 columns={expenseColumns}
                 loading={loadingExpenses}

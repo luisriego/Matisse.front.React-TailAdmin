@@ -22,8 +22,8 @@ const ComponentCard: React.FC<ComponentCardProps> = ({
       className={`rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] ${className}`}
     >
       {/* Card Header */}
-      <div className="flex items-center justify-between px-6 py-5">
-        <div>
+      <div className="relative flex items-center justify-center px-6 py-5">
+        <div className="text-center">
           <h3 className="text-base font-medium text-gray-800 dark:text-white/90">
             {title}
           </h3>
@@ -33,7 +33,9 @@ const ComponentCard: React.FC<ComponentCardProps> = ({
             </p>
           )}
         </div>
-        {headerContent}
+        <div className="absolute top-1/2 right-6 -translate-y-1/2">
+          {headerContent}
+        </div>
       </div>
 
       {/* Conditionally render Card Body only if there are actual children to render */}

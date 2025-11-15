@@ -162,7 +162,7 @@ export default function Accounts() {
     {
       key: "total",
       header: "Saldo",
-      className: "w-48",
+      className: "w-48 text-right",
       cell: (account) => (
         <span
           className={`font-medium text-theme-sm ${

@@ -30,7 +30,7 @@ export default function DataTable<T extends { id: string | number }>({ data, col
                 <TableCell
                   key={column.key}
                   isHeader
-                  className={`px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400 ${column.className || ''}`}>
+                  className={`px-5 py-3 font-medium text-gray-500 text-theme-xs dark:text-gray-400 ${column.className || ''}`}>
                   {column.header}
                 </TableCell>
               ))}
@@ -41,7 +41,7 @@ export default function DataTable<T extends { id: string | number }>({ data, col
             {data.map((row, index) => (
               <TableRow key={row.id ? String(row.id) : `row-${index}`}>
                 {columns.map((column) => (
-                  <TableCell key={`${row.id ? String(row.id) : `row-${index}`}-${column.key}`} className={`px-5 py-4 sm:px-6 text-start ${column.className || ''}`}>
+                  <TableCell key={`${row.id ? String(row.id) : `row-${index}`}-${column.key}`} className={`px-5 py-4 sm:px-6 ${column.className || ''}`}>
                     {column.cell(row)}
                   </TableCell>
                 ))}
