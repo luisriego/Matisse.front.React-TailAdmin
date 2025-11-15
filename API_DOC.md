@@ -10,6 +10,27 @@ All API endpoints are protected and require a valid JSON Web Token (JWT) to be s
 Authorization: Bearer <your_jwt_token>
 ```
 
+## Error Responses
+
+In case of an error (status codes `4xx` or `5xx`), the API returns a standardized JSON object with the following structure.
+
+**Example Error Body (`404 Not Found`)**
+
+```json
+{
+  "class": "App\\Shared\\Domain\\Exception\\ResourceNotFoundException",
+  "code": 404,
+  "message": "The requested resource was not found."
+}
+```
+
+**Fields:**
+
+-   `class` (string): The fully qualified class name of the exception that was thrown.
+-   `code` (integer): The HTTP status code.
+-   `message` (string): A human-readable message describing the error.
+
+
 ## Bounded Contexts
 
 The API is organized into the following Bounded Contexts, each representing a specific area of the application's functionality:
@@ -76,7 +97,7 @@ Retrieves a list of all accounts.
 
 -   `200 OK`: The request was successful.
 
-**Example Response:**
+**Example Success Response:**
 
 ```json
 [
@@ -84,7 +105,7 @@ Retrieves a list of all accounts.
     "id": "a7b7b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3b",
     "code": "1.01.01",
     "name": "Cash",
-    "balance": 1500.75,
+    "balance": 150075,
     "isActive": true,
     "createdAt": "2023-10-27T10:00:00+00:00",
     "updatedAt": "2023-10-27T10:00:00+00:00"
@@ -93,7 +114,7 @@ Retrieves a list of all accounts.
     "id": "c3e8b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3c",
     "code": "1.01.02",
     "name": "Savings",
-    "balance": 5000.00,
+    "balance": 500000,
     "isActive": true,
     "createdAt": "2023-10-27T10:00:00+00:00",
     "updatedAt": "2023-10-27T10:00:00+00:00"
@@ -105,13 +126,128 @@ Retrieves a list of all accounts.
 
 Retrieves a single account by its ID.
 
-**Parameters:**
+**Path Parameters:**
 
--   `id` (string, required): The unique identifier of the account.
+-   `id` (string, required): The unique identifier of the account (UUID format).
 
 **Responses:**
 
 -   `200 OK`: The request was successful.
+-   `404 Not Found`: The specified account does not exist.
+
+**Example Success Response:**
+
+```json
+{
+  "id": "a7b7b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3b",
+  "code": "1.01.01",
+  "name": "Cash",
+  "balance": 150075,
+  "isActive": true,
+  "createdAt": "2023-10-27T10:00:00+00:00",
+  "updatedAt": "2023-10-27T10:00:00+00:00"
+}
+```
+
+### `PATCH /api/v1/accounts/{id}`
+
+Updates an existing account's details.
+
+**Path Parameters:**
+
+-   `id` (string, required): The unique identifier of the account to update (UUID format).
+
+**Request Body:**
+
+```json
+{
+  "code": "1.01.01.A",
+  "name": "Main Cash Account"
+}
+```
+
+**Body Parameters:**
+
+-   `code` (string, optional): The new account code.
+-   `name` (string, optional): The new name for the account.
+
+**Responses:**
+
+-   `204 No Content`: The account was updated successfully.
+-   `400 Bad Request`: The request was malformed or validation failed.
+-   `404 Not Found`: The specified account does not exist.
+
+### `PATCH /api/v1/accounts/enable/{id}`
+
+Enables an account, setting its `isActive` status to `true`.
+
+**Path Parameters:**
+
+-   `id` (string, required): The unique identifier of the account to enable (UUID format).
+
+**Responses:**
+
+-   `204 No Content`: The account was enabled successfully.
+-   `404 Not Found`: The specified account does not exist.
+
+### `PATCH /api/v1/accounts/disable/{id}`
+
+Disables an account, setting its `isActive` status to `false`.
+
+**Path Parameters:**
+
+-   `id` (string, required): The unique identifier of the account to disable (UUID format).
+
+**Responses:**
+
+-   `204 No Content`: The account was disabled successfully.
+-   `404 Not Found`: The specified account does not exist.
+
+### `GET /api/v1/accounts/{id}/balance`
+
+Retrieves the current balance for a specific account.
+
+**Path Parameters:**
+
+-   `id` (string, required): The unique identifier of the account (UUID format).
+
+**Responses:**
+
+-   `200 OK`: The request was successful.
+-   `404 Not Found`: The specified account does not exist.
+
+**Example Success Response:**
+
+```json
+{
+  "balance": 150075
+}
+```
+
+### `PUT /api/v1/accounts/{id}/initial-balance`
+
+Sets the initial balance for an account. This should typically be used only once during setup.
+
+**Path Parameters:**
+
+-   `id` (string, required): The unique identifier of the account (UUID format).
+
+**Request Body:**
+
+```json
+{
+  "balance": 500000
+}
+```
+
+**Body Parameters:**
+
+-   `balance` (integer, required): The initial balance for the account, specified in cents.
+
+**Responses:**
+
+-   `204 No Content`: The initial balance was set successfully.
+-   `400 Bad Request`: The request was malformed (e.g., balance is not a number).
 -   `404 Not Found`: The specified account does not exist.
 
 ---
@@ -146,7 +282,7 @@ Enters a new expense.
 {
   "id": "d4e8b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3d",
   "amount": 10000,
-  "type": "services",
+  "type": "f2266caa-0edf-4403-a1dd-d81e9a05c430",
   "accountId": "a7b7b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3b",
   "dueDate": "2023-11-15",
   "isActive": true,
@@ -181,7 +317,7 @@ Enters a new expense with a required description.
 {
   "id": "d4e8b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3d",
   "amount": 10000,
-  "type": "services",
+  "type": "f2266caa-0edf-4403-a1dd-d81e9a05c430",
   "accountId": "a7b7b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3b",
   "dueDate": "2023-11-15",
   "description": "Monthly internet service"
@@ -204,7 +340,7 @@ Enters a new expense with a required description.
 
 ### `GET /api/v1/expenses`
 
-Retrieves a list of all expenses. The `type` field now returns a complete Expense Type Object.
+Retrieves a list of all expenses.
 
 **Responses:**
 
@@ -223,10 +359,11 @@ Retrieves a list of all expenses. The `type` field now returns a complete Expens
     "createdAt": "2025-10-15 22:32:02",
     "residentUnitId": null,
     "type": {
-        "id": "116fed88-7abe-462d-b97a-8473480a45d3",
-        "name": "Servicios",
-        "code": "SRV",
-        "description": "Gastos relacionados con servicios"
+        "id": "f2266caa-0edf-4403-a1dd-d81e9a05c430",
+        "code": "MR1GE",
+        "name": "MANUTENCAO_GERAL",
+        "distributionMethod": "EQUAL",
+        "description": "Pequenos reparos (hidráulica, elétrica em áreas comuns, chaveiro, etc.)."
     },
     "account": {
         "id": "6509f512-11f6-4f39-8457-e5e2ad9e221f",
@@ -239,26 +376,6 @@ Retrieves a list of all expenses. The `type` field now returns a complete Expens
   }
 ]
 ```
-
-#### Expense Type Object
-
-The `type` field, when returned as a full object, has the following structure:
-
-```json
-{
-  "id": "string",
-  "name": "string",
-  "code": "string",
-  "description": "string"
-}
-```
-
-**Parameters:**
-
--   `id` (string): The unique identifier for the expense type (UUID format).
--   `name` (string): The name of the expense type.
--   `code` (string): A short code for the expense type.
--   `description` (string): A description of the expense type.
 
 ### `GET /api/v1/expenses/{id}`
 
@@ -277,21 +394,29 @@ Retrieves a single expense by its ID.
 
 ```json
 {
-  "id": "d4e8b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3d",
-  "amount": 10000,
+  "id": "0e45a25e-6857-40f5-86ae-b1031bd51c3f",
+  "amount": 9000,
+  "description": "Robert telf. 555-313131 (October 2025)",
+  "dueDate": "2025-10-09 00:00:00",
+  "paidAt": null,
+  "createdAt": "2025-10-15 22:32:02",
+  "residentUnitId": null,
   "type": {
-      "id": "116fed88-7abe-462d-b97a-8473480a45d3",
-      "name": "Servicios",
-      "code": "SRV",
-      "description": "Gastos relacionados con servicios"
+      "id": "f2266caa-0edf-4403-a1dd-d81e9a05c430",
+      "code": "MR1GE",
+      "name": "MANUTENCAO_GERAL",
+      "distributionMethod": "EQUAL",
+      "description": "Pequenos reparos (hidráulica, elétrica em áreas comuns, chaveiro, etc.)."
   },
-  "accountId": "a7b7b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3b",
-  "dueDate": "2023-11-15",
-  "isActive": true,
-  "description": "Monthly internet service",
-    "residentUnitId": "e4b8b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3e"
-  }
-]
+  "account": {
+      "id": "6509f512-11f6-4f39-8457-e5e2ad9e221f",
+      "code": "TRE23UY",
+      "name": "Conta Principal",
+      "description": "Esta é a conta principal do condominio, utilizada para gastos correntes.",
+      "isActive": true
+  },
+  "recurringExpense": "c9e67e09-84ca-4c73-8f3d-6377d6d852db"
+}
 ```
 
 ### `PATCH /api/v1/expenses/update/{id}`
@@ -363,7 +488,7 @@ Marks an expense as payed.
 
 ### `GET /api/v1/expenses/date-range/{year}/{month}`
 
-Retrieves a list of active expenses for a given month and year. The `type` field now returns a complete Expense Type Object.
+Retrieves a list of active expenses for a given month and year.
 
 **Parameters:**
 
@@ -387,10 +512,11 @@ Retrieves a list of active expenses for a given month and year. The `type` field
     "createdAt": "2025-10-18 02:33:21",
     "residentUnitId": null,
     "type": {
-        "id": "47b4ebd1-9bdb-4f97-8ab1-8549f533ae81",
-        "name": "Mantenimiento",
-        "code": "MNT",
-        "description": "Gastos de mantenimiento"
+        "id": "f2266caa-0edf-4403-a1dd-d81e9a05c430",
+        "code": "MR1GE",
+        "name": "MANUTENCAO_GERAL",
+        "distributionMethod": "EQUAL",
+        "description": "Pequenos reparos (hidráulica, elétrica em áreas comuns, chaveiro, etc.)."
     },
     "account": {
         "id": "6509f512-11f6-4f39-8457-e5e2ad9e221f",
@@ -542,11 +668,124 @@ Deletes a recurring expense.
 -   `204 No Content`: The recurring expense was deleted successfully.
 -   `404 Not Found`: The specified recurring expense does not exist.
 
+### `PUT /api/v1/recurring-expenses/enter-monthly`
+
+Triggers the creation of monthly expenses based on existing recurring expense definitions for a specific month and year.
+
+**Request Body:**
+
+```json
+{
+  "month": 10,
+  "year": 2025
+}
+```
+
+**Body Parameters:**
+
+-   `month` (integer, required): The month (1-12) for which to generate expenses.
+-   `year` (integer, required): The year for which to generate expenses.
+
+**Responses:**
+
+-   `201 Created`: The expenses were generated successfully. The response body contains a list of the created expenses.
+-   `400 Bad Request`: The request was malformed (e.g., invalid month or year).
+-   `409 Conflict`: Expenses for this month have already been generated.
+
+**Example Success Response:**
+
+```json
+{
+  "message": "Monthly recurring expenses for 10/2025 have been successfully entered.",
+  "count": 2,
+  "totalAmount": 135000
+}
+```
+
+### `GET /api/v1/recurring-expenses/pending-monthly/{month}/{year}`
+
+Retrieves a list of recurring expenses that are scheduled to be paid in a given month and year but have not yet been entered as actual expenses.
+
+**Path Parameters:**
+
+-   `month` (integer, required): The month to filter by (1-12).
+-   `year` (integer, required): The year to filter by.
+
+**Responses:**
+
+-   `200 OK`: The request was successful.
+
+**Example Success Response:**
+
+```json
+[
+  {
+    "id": "c9e67e09-84ca-4c73-8f3d-6377d6d852db",
+    "amount": 125000,
+    "type": {
+        "id": "f2266caa-0edf-4403-a1dd-d81e9a05c430",
+        "name": "MANUTENCAO_GERAL"
+    },
+    "account": {
+        "id": "6509f512-11f6-4f39-8457-e5e2ad9e221f",
+        "name": "Conta Principal"
+    },
+    "dueDay": 15,
+    "description": "Monthly maintenance fee"
+  }
+]
+```
+
+### `GET /api/v1/recurring-expenses/year/{year}`
+
+Retrieves a list of all recurring expenses active for a given year.
+
+**Path Parameters:**
+
+-   `year` (integer, required): The year to filter by.
+
+**Responses:**
+
+-   `200 OK`: The request was successful.
+
+**Example Success Response:**
+
+```json
+[
+  {
+    "id": "c9e67e09-84ca-4c73-8f3d-6377d6d852db",
+    "amount": 125000,
+    "type": "f2266caa-0edf-4403-a1dd-d81e9a05c430",
+    "accountId": "6509f512-11f6-4f39-8457-e5e2ad9e221f",
+    "dueDay": 15,
+    "monthsOfYear": [1,2,3,4,5,6,7,8,9,10,11,12],
+    "description": "Monthly maintenance fee",
+    "hasPredefinedAmount": true
+  }
+]
+```
+
 ---
 
 ## Income
 
 The Income context manages all incomes.
+
+### `GET /api/v1/incomes/health-check`
+
+Performs a health check of the Income context. This endpoint does not require authentication.
+
+**Responses:**
+
+-   `200 OK`: The service is healthy.
+
+**Example Response:**
+
+```json
+{
+  "status": 200
+}
+```
 
 ### `PUT /api/v1/incomes/enter`
 
@@ -607,6 +846,78 @@ Updates an income.
 -   `400 Bad Request`: The request was malformed or validation failed.
 -   `404 Not Found`: The specified income does not exist.
 
+### `PATCH /api/v1/incomes/payed/{id}`
+
+Marks an income as paid.
+
+**Path Parameters:**
+
+-   `id` (string, required): The unique identifier of the income to mark as paid (UUID format).
+
+**Responses:**
+
+-   `204 No Content`: The income was marked as paid successfully.
+-   `404 Not Found`: The specified income does not exist.
+
+### `GET /api/v1/incomes`
+
+Retrieves a list of all incomes.
+
+**Responses:**
+
+-   `200 OK`: The request was successful.
+
+**Example Response:**
+
+```json
+[
+  {
+    "id": "1f0b8de4-809c-4586-aacd-254d0fde6eba",
+    "amount": 132000,
+    "residentUnitId": "674424a7-6009-42c0-a2da-6cc21a542bbd",
+    "type": {
+      "id": "6ed40f15-07a9-416a-99cf-bbb58348f4fd",
+      "name": "Condominio",
+      "code": "CON",
+      "description": "Cuota de condominio"
+    },
+    "dueDate": "2025-10-21",
+    "description": "Condominio de outubro"
+  }
+]
+```
+
+### `GET /api/v1/incomes/{id}`
+
+Retrieves a single income by its ID.
+
+**Path Parameters:**
+
+-   `id` (string, required): The unique identifier of the income (UUID format).
+
+**Responses:**
+
+-   `200 OK`: The request was successful.
+-   `404 Not Found`: The specified income does not exist.
+
+**Example Success Response:**
+
+```json
+{
+  "id": "1f0b8de4-809c-4586-aacd-254d0fde6eba",
+  "amount": 132000,
+  "residentUnitId": "674424a7-6009-42c0-a2da-6cc21a542bbd",
+  "type": {
+    "id": "6ed40f15-07a9-416a-99cf-bbb58348f4fd",
+    "name": "Condominio",
+    "code": "CON",
+    "description": "Cuota de condominio"
+  },
+  "dueDate": "2025-10-21",
+  "description": "Condominio de outubro"
+}
+```
+
 ### `GET /api/v1/incomes/date-range/{year}/{month}`
 
 Retrieves a list of incomes for a given month and year.
@@ -625,6 +936,7 @@ Retrieves a list of incomes for a given month and year.
 ```json
 [
   {
+    "id": "1f0b8de4-809c-4586-aacd-254d0fde6eba",
     "amount": 132000,
     "residentUnitId": "674424a7-6009-42c0-a2da-6cc21a542bbd",
     "type": {
@@ -639,9 +951,14 @@ Retrieves a list of incomes for a given month and year.
 ]
 ```
 
-### `GET /api/v1/incomes`
+### `GET /api/v1/incomes/date-range-recurring/{year}/{month}`
 
-Retrieves a list of all incomes.
+Retrieves a list of inactive (or not yet created) recurring incomes for a given month and year.
+
+**Parameters:**
+
+-   `year` (integer, required): The year to filter by.
+-   `month` (integer, required): The month to filter by.
 
 **Responses:**
 
@@ -652,16 +969,13 @@ Retrieves a list of all incomes.
 ```json
 [
   {
+    "id": "d4e8b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3d",
     "amount": 132000,
-    "residentUnitId": "674424a7-6009-42c0-a2da-6cc21a542bbd",
-    "type": {
-      "id": "6ed40f15-07a9-416a-99cf-bbb58348f4fd",
-      "name": "Condominio",
-      "code": "CON",
-      "description": "Cuota de condominio"
-    },
-    "dueDate": "2025-10-21",
-    "description": "Condominio de outubro"
+    "type": "Condominio",
+    "residentUnitId": "a7b7b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3b",
+    "dueDate": "2023-11-15",
+    "isActive": false,
+    "description": "Condominio de novembro"
   }
 ]
 ```
@@ -698,7 +1012,7 @@ Creates a new resident unit.
 {
   "id": "h4e8b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3h",
   "unit": "Apartment 102",
-  "idealFraction": 0.5,
+  "idealFraction": 5000,
   "notificationRecipients": [
     {
       "name": "Peter Jones",
@@ -712,7 +1026,7 @@ Creates a new resident unit.
 
 -   `id` (string, required): The unique identifier for the resident unit (UUID format).
 -   `unit` (string, required): The name or number of the unit.
--   `idealFraction` (float, required): The ideal fraction of the resident unit.
+-   `idealFraction` (integer, required): The ideal fraction of the resident unit, represented as an integer with 4 decimal places (e.g., 5000 for 0.5).
 -   `notificationRecipients` (array, optional): An array of notification recipients. Each recipient should be an object with `name` and `email` properties.
 
 **Responses:**
@@ -730,7 +1044,7 @@ Creates a new resident unit with recipients. This endpoint is very similar to `P
 {
   "id": "h4e8b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3h",
   "unit": "Apartment 102",
-  "idealFraction": 0.5,
+  "idealFraction": 5000,
   "notificationRecipients": [
     {
       "name": "Peter Jones",
@@ -744,7 +1058,7 @@ Creates a new resident unit with recipients. This endpoint is very similar to `P
 
 -   `id` (string, required): The unique identifier for the resident unit (UUID format).
 -   `unit` (string, required): The name or number of the unit.
--   `idealFraction` (float, required): The ideal fraction of the resident unit.
+-   `idealFraction` (integer, required): The ideal fraction of the resident unit, represented as an integer with 4 decimal places (e.g., 5000 for 0.5).
 -   `notificationRecipients` (array, optional): An array of notification recipients. Each recipient should be an object with `name` and `email` properties.
 
 **Responses:**
@@ -767,34 +1081,84 @@ Retrieves a list of active resident units.
   {
     "id": "e4b8b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3e",
     "unit": "Apartment 101",
-    "idealFraction": 0.5
+    "idealFraction": 5000
   },
   {
     "id": "f4b8b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3f",
     "unit": "Apartment 102",
-    "idealFraction": 0.5
+    "idealFraction": 5000
   }
 ]
 ```
 
-### `GET /api/v1/resident-unit/{id}`
+### `PATCH /api/v1/resident-unit/{id}/recipients`
 
-Retrieves a single resident unit by its ID.
+Appends a recipient to a resident unit.
 
 **Parameters:**
 
 -   `id` (string, required): The unique identifier of the resident unit.
 
+**Request Body:**
+
+```json
+{
+  "name": "Jane Doe",
+  "email": "jane.doe@example.com"
+}
+```
+
+**Parameters:**
+
+-   `name` (string, required): The name of the recipient.
+-   `email` (string, required): The email address of the recipient.
+
 **Responses:**
 
--   `200 OK`: The request was successful.
+-   `200 OK`: The recipient was appended successfully.
 -   `404 Not Found`: The specified resident unit does not exist.
+
+**Example Response:**
+
+```json
+{
+  "id": "e4b8b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3e",
+  "unit": "Apartment 101",
+  "idealFraction": 5000,
+  "notificationRecipients": [
+    {
+      "name": "John Doe",
+      "email": "john.doe@example.com"
+    },
+    {
+      "name": "Jane Doe",
+      "email": "jane.doe@example.com"
+    }
+  ]
+}
+```
 
 ---
 
 ## Slip
 
 The Slip context manages the generation and sending of slips.
+
+### `GET /api/v1/slips/health-check`
+
+Performs a health check of the Slip context. This endpoint does not require authentication.
+
+**Responses:**
+
+-   `200 OK`: The service is healthy.
+
+**Example Response:**
+
+```json
+{
+  "status": 200
+}
+```
 
 ### `POST /api/v1/slips/generation`
 
@@ -871,6 +1235,47 @@ Marks a slip as paid.
 -   `404 Not Found`: The specified slip does not exist.
 -   `409 Conflict`: The slip cannot be marked as paid in its current state.
 
+### `POST /api/v1/slips/check-total`
+
+Checks if the total amount of a slip is within an expected range and generates an alert if it is not.
+
+**Request Body:**
+
+```json
+{
+  "amount": 750000
+}
+```
+
+**Body Parameters:**
+
+-   `amount` (integer, required): The total amount of the slip in cents.
+
+**Responses:**
+
+-   `200 OK`: The check was performed successfully. The status in the response body indicates the result.
+-   `400 Bad Request`: The request was malformed (e.g., `amount` is missing).
+
+**Example Success Response (Within Range):**
+
+```json
+{
+    "status": "ok",
+    "message": "O total do slip está dentro do intervalo esperado.",
+    "amount": 750000
+}
+```
+
+**Example Success Response (Anomaly Detected):**
+
+```json
+{
+    "status": "alert_generated",
+    "message": "<Generated alert message from AI>",
+    "amount": 400000
+}
+```
+
 ---
 
 ## User
@@ -935,7 +1340,6 @@ Activates a user account. This endpoint is typically used by clicking a link in 
 **Responses:**
 
 -   `200 OK`: The user account was activated successfully.
-
 -   `400 Bad Request`: The activation token is invalid or has expired.
 -   `404 Not Found`: The specified user does not exist.
 
@@ -947,14 +1351,14 @@ Authenticates a user and returns a JWT token.
 
 ```json
 {
-  "username": "john.doe@example.com",
+  "email": "john.doe@example.com",
   "password": "password"
 }
 ```
 
 **Parameters:**
 
--   `username` (string, required): The user's email address.
+-   `email` (string, required): The user's email address.
 -   `password` (string, required): The user's password.
 
 **Responses:**
@@ -1108,19 +1512,13 @@ Updates a user's profile information.
 
 ```json
 {
-  "name": "Johnathan",
-  "lastName": "Doe",
-  "gender": "male",
-  "phoneNumber": "1234567890"
+  "name": "Johnathan Doe"
 }
 ```
 
 **Parameters:**
 
--   `name` (string, required): The user's first name.
--   `lastName` (string, required): The user's last name.
--   `gender` (string, required): The user's gender.
--   `phoneNumber` (string, required): The user's phone number.
+-   `name` (string, optional): The user's updated name.
 
 **Responses:**
 
@@ -1166,60 +1564,3 @@ Unlinks a resident unit from a user.
 
 -   `204 No Content`: The resident unit was unlinked successfully.
 -   `404 Not Found`: The specified user does not exist.
-
-**Example Response:**
-
-```json
-{
-  "id": "e4b8b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3e",
-  "name": "Apartment 101",
-  "recipients": [
-    {
-      "name": "John Doe",
-      "email": "john.doe@example.com"
-    }
-  ]
-}
-```
-
-### `PATCH /api/v1/resident-unit/{id}/recipients`
-
-Appends a recipient to a resident unit.
-
-**Parameters:**
-
--   `id` (string, required): The unique identifier of the resident unit.
-
-**Request Body:**
-
-```json
-{
-  "name": "Jane Doe",
-  "email": "jane.doe@example.com"
-}
-```
-
-**Parameters:**
-
--   `name` (string, required): The name of the recipient.
--   `email` (string, required): The email address of the recipient.
-
-**Responses:**
-
--   `200 OK`: The recipient was appended successfully.
--   `404 Not Found`: The specified resident unit does not exist.
-
-
-**Example Response:**
-
-```json
-{
-  "id": "a7b7b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3b",
-  "code": "1.01.01",
-  "name": "Cash",
-  "balance": 1500.75,
-  "isActive": true,
-  "createdAt": "2023-10-27T10:00:00+00:00",
-  "updatedAt": "2023-10-27T10:00:00+00:00"
-}
-```

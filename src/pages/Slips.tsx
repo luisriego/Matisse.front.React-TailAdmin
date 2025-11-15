@@ -3,11 +3,12 @@ import PageMeta from '../components/common/PageMeta';
 import PageBreadcrumb from '../components/common/PageBreadCrumb';
 import { Hook } from 'flatpickr/dist/types/options';
 import AddGasConsumptionModal from "../components/modal/AddGasConsumptionModal";
-import ConfirmationModal from "../components/modal/ConfirmationModal"; // Import the new modal
+import ConfirmationModal from "../components/modal/ConfirmationModal";
 import SlipSettings from "../components/slips/SlipSettings";
 import GasConsumptionCard from "../components/gas/GasConsumptionCard";
 import GenerateSlipsCard from "../components/slips/GenerateSlipsCard";
 import MonthlyExpensesTable from "../components/expenses/MonthlyExpensesTable";
+import FullScreenLoader from "../components/common/FullScreenLoader"; // Import the new loader
 import { ExpenseType, ResidentUnit, Account, GasReading } from '../types';
 
 const Slips: React.FC = () => {
@@ -27,12 +28,14 @@ const Slips: React.FC = () => {
 
   const [extraFee, setExtraFee] = useState('');
   const [reserveFund, setReserveFund] = useState('');
-  const [gasUnitPrice, setGasUnitPrice] = useState('5,00'); // Default value
+  const [gasUnitPrice, setGasUnitPrice] = useState('');
 
   // Confirmation Modal State
   const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
   const [confirmationModalContent, setConfirmationModalContent] = useState({ title: '', message: '' });
   const [isGenerating, setIsGenerating] = useState(false);
+
+  const isGenerationDisabled = !extraFee || !reserveFund || !gasUnitPrice || gasReadings.some(reading => !reading.currentReading);
 
 
   // --- DATA FETCHING ---
@@ -43,23 +46,30 @@ const Slips: React.FC = () => {
         if (!token) throw new Error("Token não encontrado.");
         const headers = { Authorization: `Bearer ${token}` };
 
-        const [typesRes, unitsRes, accountsRes] = await Promise.all([
+        const [typesRes, unitsRes, accountsRes, gasPriceRes] = await Promise.all([
           fetch('/api/v1/expense-types', { headers }),
           fetch('/api/v1/resident-unit/actives', { headers }),
           fetch('/api/v1/accounts', { headers }),
+          fetch('/api/v1/gas/price', { headers }),
         ]);
 
         if (!typesRes.ok) throw new Error('Falha ao carregar tipos de despesa.');
         if (!unitsRes.ok) throw new Error('Falha ao carregar unidades residenciais.');
         if (!accountsRes.ok) throw new Error('Falha ao carregar contas.');
+        if (!gasPriceRes.ok) throw new Error('Falha ao carregar o preço do gás.');
 
         const expenseTypesData: ExpenseType[] = await typesRes.json();
         setExpenseTypes(expenseTypesData);
         const unitsData: ResidentUnit[] = await unitsRes.json();
         const accountsData = await accountsRes.json();
+        const gasPriceData = await gasPriceRes.json();
 
         setResidentUnits(unitsData);
         setAccounts(accountsData.accounts || []);
+
+        const priceInReais = gasPriceData.price_per_m3_in_cents / 100;
+        setGasUnitPrice(priceInReais.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+
 
         const initialGasReadings: GasReading[] = unitsData.map(unit => ({
           residentUnitId: unit.id,
@@ -113,15 +123,13 @@ const Slips: React.FC = () => {
             title: 'Alerta de Contabilidade',
             message: checkTotalData.message,
           });
-          setIsConfirmationModalOpen(true);
-          // Don't proceed until user confirms
+          setLoading(false); // Hide full-screen loader
+          setIsConfirmationModalOpen(true); // Show confirmation modal
           return;
         } else {
-          // If no alert, proceed directly
           await proceedWithGeneration();
         }
       } else {
-        // If check-total fails, log error but proceed as a fallback
         console.error("Error with check-total endpoint, proceeding with generation.");
         await proceedWithGeneration();
       }
@@ -131,7 +139,6 @@ const Slips: React.FC = () => {
       } else {
         setError('Ocorreu um erro desconhecido.');
       }
-    } finally {
       setLoading(false);
     }
   };
@@ -142,7 +149,6 @@ const Slips: React.FC = () => {
     setSuccess(null);
 
     if (!targetMonth) {
-      // This should not happen if called from handleGenerateSlips
       setError("Mês alvo não selecionado.");
       setIsGenerating(false);
       return;
@@ -190,8 +196,8 @@ const Slips: React.FC = () => {
       }
     } finally {
       setIsGenerating(false);
-      setIsConfirmationModalOpen(false); // Close modal on completion
-      setLoading(false); // Also turn off the main loading state
+      setIsConfirmationModalOpen(false);
+      setLoading(false);
     }
   };
 
@@ -219,6 +225,7 @@ const Slips: React.FC = () => {
   // --- RENDER ---
   return (
     <>
+      <FullScreenLoader isOpen={loading} />
       <PageMeta title="Boletos | Matisse" description="Página para geração e gestão de boletos" />
       <PageBreadcrumb pageTitle="Boletos" />
       <div className="space-y-6">
@@ -231,6 +238,7 @@ const Slips: React.FC = () => {
             error={error}
             success={success}
             className="lg:col-span-3 h-full"
+            isGenerationDisabled={isGenerationDisabled}
           />
           <div className="lg:col-span-4">
             <SlipSettings
