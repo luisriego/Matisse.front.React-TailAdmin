@@ -14,7 +14,7 @@ import { ExpenseType, ResidentUnit, Account, GasReading } from '../types';
 const Slips: React.FC = () => {
   // --- STATE MANAGEMENT ---
   const [targetMonth, setTargetMonth] = useState<Date | null>(new Date());
-  const [loading, setLoading] = useState(true); // Start with loading true
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -54,7 +54,6 @@ const Slips: React.FC = () => {
           fetch('/api/v1/gas/price', { headers }),
         ]);
 
-        // Handle critical data: resident units
         if (unitsRes.ok) {
           const unitsData: ResidentUnit[] = await unitsRes.json();
           setResidentUnits(unitsData);
@@ -70,7 +69,6 @@ const Slips: React.FC = () => {
           throw new Error(errorData.message || 'Falha ao carregar unidades residenciais.');
         }
 
-        // Handle other data, logging errors or setting non-critical state
         if (typesRes.ok) {
           const expenseTypesData = await typesRes.json();
           setExpenseTypes(expenseTypesData);
@@ -85,7 +83,6 @@ const Slips: React.FC = () => {
           console.error('Falha ao carregar contas.');
         }
 
-        // Handle gas price, setting a page error but not throwing
         if (gasPriceRes.ok) {
           const gasPriceData = await gasPriceRes.json();
           const priceInReais = gasPriceData.price_per_m3_in_cents / 100;
@@ -141,7 +138,7 @@ const Slips: React.FC = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ amount: 400000 }), // Example amount
+        body: JSON.stringify({ amount: 400000 }),
       });
 
       if (checkTotalResponse.ok) {
@@ -229,9 +226,32 @@ const Slips: React.FC = () => {
     }
   };
 
+  const handleOpenGasModal = async (reading: GasReading) => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setError("Token não encontrado.");
+      return;
+    }
+    const headers = { Authorization: `Bearer ${token}` };
 
-  const handleOpenGasModal = (reading: GasReading) => {
-    setSelectedGasReading(reading);
+    // Start with the current reading data
+    let updatedReading = { ...reading };
+
+    try {
+      const response = await fetch(`/api/v1/gas/resident-units/${reading.residentUnitId}/last-reading`, { headers });
+      if (response.ok) {
+        const data = await response.json();
+        updatedReading.previousReading = data.reading;
+      } else {
+        // If not found, previous reading remains 0, which is the default
+        console.warn(`Nenhuma leitura de gás anterior encontrada para a unidade ${reading.unit}.`);
+      }
+    } catch (err) {
+      console.error("Erro ao buscar a última leitura de gás:", err);
+      // Keep previousReading as 0 in case of error
+    }
+
+    setSelectedGasReading(updatedReading);
     setIsGasModalOpen(true);
   };
 
