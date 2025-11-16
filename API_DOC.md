@@ -224,18 +224,18 @@ Retrieves a list of all expenses. The `type` field now returns a complete Expens
     "createdAt": "2025-10-15 22:32:02",
     "residentUnitId": null,
     "type": {
-        "id": "f2266caa-0edf-4403-a1dd-d81e9a05c430",
-        "code": "MR1GE",
-        "name": "MANUTENCAO_GERAL",
-        "distributionMethod": "EQUAL",
-        "description": "Pequenos reparos (hidráulica, elétrica em áreas comuns, chaveiro, etc.)."
+      "id": "f2266caa-0edf-4403-a1dd-d81e9a05c430",
+      "code": "MR1GE",
+      "name": "MANUTENCAO_GERAL",
+      "distributionMethod": "EQUAL",
+      "description": "Pequenos reparos (hidráulica, elétrica em áreas comuns, chaveiro, etc.)."
     },
     "account": {
-        "id": "6509f512-11f6-4f39-8457-e5e2ad9e221f",
-        "code": "TRE23UY",
-        "name": "Conta Principal",
-        "description": "Esta é a conta principal do condominio, utilizada para gastos correntes.",
-        "isActive": true
+      "id": "6509f512-11f6-4f39-8457-e5e2ad9e221f",
+      "code": "TRE23UY",
+      "name": "Conta Principal",
+      "description": "Esta é a conta principal do condominio, utilizada para gastos correntes.",
+      "isActive": true
     },
     "recurringExpense": "c9e67e09-84ca-4c73-8f3d-6377d6d852db"
   }
@@ -755,40 +755,6 @@ Records a new gas reading for a specific resident unit and period.
 -   `201 Created`: The gas reading was recorded successfully.
 -   `400 Bad Request`: The request was malformed or validation failed.
 
-### `GET /api/v1/gas/resident-units/{id}/last-reading`
-
-Retrieves the last gas reading for a specific resident unit, corresponding to the period of "two months ago". For example, a call in November will return the last reading from September or earlier.
-
-**URL Parameters:**
-
-| Parámetro | Tipo         | Required | Descripción                                  |
-| :-------- | :----------- | :------- | :------------------------------------------- |
-| `{id}`    | `string` (UUID) | Yes      | The ID of the `ResidentUnit`.                |
-
-**Responses:**
-
--   `200 OK`: A reading was found successfully.
--   `404 Not Found`: No previous gas reading was found for this resident unit in the specified period.
-
-**Example Response (Success):**
-
-```json
-{
-    "resident_unit_id": "674424a7-6009-42c0-a2da-6cc21a542bbc",
-    "reading": 150.5
-}
-```
-
-**Example Response (Error):**
-
-```json
-{
-    "class": "App\\Context\\Gas\\Domain\\Exception\\GasReadingNotFoundException",
-    "code": 404,
-    "message": "Não foi encontrada uma leitura de gás anterior para esta unidade residencial."
-}
-```
-
 ---
 
 ## Resident Unit
@@ -888,14 +854,80 @@ Retrieves a list of active resident units.
 ```json
 [
   {
-    "id": "e4b8b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3e",
-    "unit": "Apartment 101",
-    "idealFraction": 0.5
+    "id": "674424a7-6009-42c0-a2da-6cc21a542bbc",
+    "unit": "AP-101",
+    "idealFraction": 0.25787791,
+    "isActive": true,
+    "createdAt": "2025-06-21 00:59:01",
+    "updatedAt": "2025-09-06 13:06:41",
+    "notificationRecipients": [
+      {
+        "name": "Anna",
+        "email": "anna@anna.com"
+      },
+      {
+        "name": "Carol",
+        "email": "carol@ufop.com.br"
+      }
+    ]
   },
   {
-    "id": "f4b8b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3f",
-    "unit": "Apartment 102",
-    "idealFraction": 0.5
+    "id": "674424a7-6009-42c0-a2da-6cc21a542bbd",
+    "unit": "AP-201",
+    "idealFraction": 0.18131761,
+    "isActive": true,
+    "createdAt": "2025-06-21 00:59:01",
+    "updatedAt": null,
+    "notificationRecipients": []
+  },
+  {
+    "id": "674424a7-6009-42c0-a2da-6cc21a542bbe",
+    "unit": "AP-301",
+    "idealFraction": 0.19816931,
+    "isActive": true,
+    "createdAt": "2025-06-21 00:59:01",
+    "updatedAt": null,
+    "notificationRecipients": []
+  },
+  {
+    "id": "674424a7-6009-42c0-a2da-6cc21a542bbf",
+    "unit": "AP-401",
+    "idealFraction": 0.18131761,
+    "isActive": true,
+    "createdAt": "2025-06-21 00:59:01",
+    "updatedAt": "2025-09-24 20:02:39",
+    "notificationRecipients": [
+      {
+        "name": "Andréa",
+        "email": "andrea.trt@email.com.br"
+      },
+      {
+        "name": "Andrea",
+        "email": "outro@email.com"
+      },
+      {
+        "name": "Andrea",
+        "email": "ultimo@email.com"
+      }
+    ]
+  },
+  {
+    "id": "4e4d638a-9d62-45f2-a114-b668f3928e17",
+    "unit": "AP-501",
+    "idealFraction": 0.18131761,
+    "isActive": true,
+    "createdAt": "2025-06-21 00:59:01",
+    "updatedAt": null,
+    "notificationRecipients": [
+      {
+        "name": "Inmobiliaria XYZ",
+        "email": "admin@inmobiliaria.com"
+      },
+      {
+        "name": "Orlando",
+        "email": "orlando@email.com"
+      }
+    ]
   }
 ]
 ```
@@ -927,8 +959,22 @@ Generates slips for a specific month.
 
 ```json
 {
-  "targetMonth": "2023-11",
-  "force": false
+  "id": "4e4d638a-9d62-45f2-a114-b668f3928e17",
+  "unit": "AP-501",
+  "idealFraction": 0.18131761,
+  "isActive": true,
+  "createdAt": "2025-06-21 00:59:01",
+  "updatedAt": null,
+  "notificationRecipients": [
+    {
+      "name": "Inmobiliaria XYZ",
+      "email": "admin@inmobiliaria.com"
+    },
+    {
+      "name": "Orlando",
+      "email": "orlando@email.com"
+    }
+  ]
 }
 ```
 

@@ -37,6 +37,27 @@ const Slips: React.FC = () => {
 
   const isGenerationDisabled = !extraFee || !reserveFund || !gasUnitPrice || gasReadings.some(reading => !reading.currentReading);
 
+  // --- Helper to fetch reading for a specific unit and month
+  const fetchSpecificReading = async (unitId: string, year: number, month: number, token: string): Promise<number> => {
+    const headers = { Authorization: `Bearer ${token}` };
+    try {
+      // API expects 1-indexed month
+      const response = await fetch(`/api/v1/gas/resident-units/${unitId}/reading/${year}/${month}`, { headers });
+      if (response.ok) {
+        const data = await response.json();
+        return data.reading;
+      } else if (response.status === 404) {
+        return 0; // No reading found for the period
+      } else {
+        console.error(`Error fetching reading for unit ${unitId} in ${month}/${year}:`, response.statusText);
+        return 0;
+      }
+    } catch (err) {
+      console.error(`Exception fetching reading for unit ${unitId} in ${month}/${year}:`, err);
+      return 0;
+    }
+  };
+
   // --- DATA FETCHING ---
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -57,13 +78,34 @@ const Slips: React.FC = () => {
         if (unitsRes.ok) {
           const unitsData: ResidentUnit[] = await unitsRes.json();
           setResidentUnits(unitsData);
-          const initialGasReadings: GasReading[] = unitsData.map(unit => ({
+
+          // Calculate the month for which we need the previous reading (targetMonth - 2)
+          const previousReadingDate = new Date(targetMonth || new Date());
+          previousReadingDate.setMonth(previousReadingDate.getMonth() - 2);
+          const previousReadingYear = previousReadingDate.getFullYear();
+          const previousReadingMonth = previousReadingDate.getMonth() + 1; // 1-indexed for API
+
+          // Calculate the month for which we need the current reading (targetMonth - 1)
+          const currentReadingDate = new Date(targetMonth || new Date());
+          currentReadingDate.setMonth(currentReadingDate.getMonth() - 1);
+          const currentReadingYear = currentReadingDate.getFullYear();
+          const currentReadingMonth = currentReadingDate.getMonth() + 1; // 1-indexed for API
+
+          const readingsPromises = unitsData.map(async unit => {
+            const prevReading = await fetchSpecificReading(unit.id, previousReadingYear, previousReadingMonth, token);
+            const currReading = await fetchSpecificReading(unit.id, currentReadingYear, currentReadingMonth, token);
+            return { prevReading, currReading };
+          });
+          const allReadingsData = await Promise.all(readingsPromises);
+
+          const initialGasReadings: GasReading[] = unitsData.map((unit, index) => ({
             residentUnitId: unit.id,
             unit: unit.unit,
-            previousReading: 0,
-            currentReading: '',
+            previousReading: allReadingsData[index].prevReading,
+            currentReading: allReadingsData[index].currReading.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }), // Format to string for input
           }));
           setGasReadings(initialGasReadings);
+
         } else {
           const errorData = await unitsRes.json();
           throw new Error(errorData.message || 'Falha ao carregar unidades residenciais.');
@@ -110,7 +152,7 @@ const Slips: React.FC = () => {
       }
     };
     fetchInitialData();
-  }, []);
+  }, [targetMonth]); // Re-run when targetMonth changes
 
   // --- HANDLERS ---
   const handleMonthChange: Hook = useCallback((selectedDates) => {
@@ -217,7 +259,7 @@ const Slips: React.FC = () => {
       if (err instanceof Error) {
         setError(err.message);
       } else {
-        setError('Ocorreu um erro desconhecido ao gerar os boletos.');
+        setError('Ocorreu un error desconocido al generar los boletos.');
       }
     } finally {
       setIsGenerating(false);
@@ -226,32 +268,9 @@ const Slips: React.FC = () => {
     }
   };
 
-  const handleOpenGasModal = async (reading: GasReading) => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      setError("Token não encontrado.");
-      return;
-    }
-    const headers = { Authorization: `Bearer ${token}` };
-
-    // Start with the current reading data
-    let updatedReading = { ...reading };
-
-    try {
-      const response = await fetch(`/api/v1/gas/resident-units/${reading.residentUnitId}/last-reading`, { headers });
-      if (response.ok) {
-        const data = await response.json();
-        updatedReading.previousReading = data.reading;
-      } else {
-        // If not found, previous reading remains 0, which is the default
-        console.warn(`Nenhuma leitura de gás anterior encontrada para a unidade ${reading.unit}.`);
-      }
-    } catch (err) {
-      console.error("Erro ao buscar a última leitura de gás:", err);
-      // Keep previousReading as 0 in case of error
-    }
-
-    setSelectedGasReading(updatedReading);
+  const handleOpenGasModal = (reading: GasReading) => {
+    // The reading object from the state now contains the correct previousReading and currentReading
+    setSelectedGasReading(reading);
     setIsGasModalOpen(true);
   };
 
@@ -260,14 +279,86 @@ const Slips: React.FC = () => {
     setSelectedGasReading(null);
   };
 
-  const handleSaveGasConsumption = (updatedReading: GasReading) => {
-    setGasReadings(prevReadings =>
-      prevReadings.map(r =>
-        r.residentUnitId === updatedReading.residentUnitId ? updatedReading : r
-      )
-    );
-    setSuccess('Consumo de gás salvo com sucesso!');
-    setTimeout(() => setSuccess(null), 3000);
+  const handleSaveGasConsumption = async (updatedReading: GasReading) => {
+    setPageError(null);
+    setSuccess(null);
+
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) throw new Error("Token de autenticação não encontrado.");
+      if (!targetMonth) throw new Error("Mês alvo não selecionado.");
+
+      const readingDate = new Date(targetMonth);
+      readingDate.setMonth(readingDate.getMonth() - 1);
+      const readingYear = readingDate.getFullYear();
+      const readingMonth = readingDate.getMonth() + 1; // 1-indexed for API
+
+      const parseReadingInput = (value: string): number => {
+        if (!value) return 0;
+        const sanitized = value.replace(',', '.');
+        if (sanitized.includes('.')) return parseFloat(sanitized) || 0;
+        if (/^\d+$/.test(sanitized)) return (parseInt(sanitized, 10) || 0) / 1000;
+        return 0;
+      };
+
+      const readingValue = parseReadingInput(updatedReading.currentReading);
+      if (readingValue <= 0) throw new Error("A leitura atual deve ser um valor positivo.");
+
+      const body = {
+        id: crypto.randomUUID(),
+        residentUnitId: updatedReading.residentUnitId,
+        year: readingYear,
+        month: readingMonth,
+        reading: readingValue,
+      };
+
+      const response = await fetch('/api/v1/gas/reading', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Falha ao salvar a leitura de gás.');
+      }
+
+      // After saving, re-fetch all previous and current readings to update the table correctly
+      const headers = { Authorization: `Bearer ${token}` };
+      const unitsData = residentUnits; // Use the already fetched resident units
+
+      const previousReadingDate = new Date(targetMonth);
+      previousReadingDate.setMonth(previousReadingDate.getMonth() - 2);
+      const previousReadingYear = previousReadingDate.getFullYear();
+      const previousReadingMonth = previousReadingDate.getMonth() + 1; // 1-indexed for API
+
+      const currentReadingDate = new Date(targetMonth);
+      currentReadingDate.setMonth(currentReadingDate.getMonth() - 1);
+      const currentReadingYear = currentReadingDate.getFullYear();
+      const currentReadingMonth = currentReadingDate.getMonth() + 1; // 1-indexed for API
+
+      const readingsPromises = unitsData.map(async unit => {
+        const prevReading = await fetchSpecificReading(unit.id, previousReadingYear, previousReadingMonth, token);
+        const currReading = await fetchSpecificReading(unit.id, currentReadingYear, currentReadingMonth, token);
+        return { prevReading, currReading };
+      });
+      const allReadingsData = await Promise.all(readingsPromises);
+
+      setGasReadings(unitsData.map((unit, index) => ({
+        residentUnitId: unit.id,
+        unit: unit.unit,
+        previousReading: allReadingsData[index].prevReading,
+        currentReading: allReadingsData[index].currReading.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }),
+      })));
+
+      setSuccess('Consumo de gás salvo com sucesso!');
+      setTimeout(() => setSuccess(null), 3000);
+
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Ocorreu un error desconocido.';
+      console.error("Erro ao salvar consumo de gás:", message);
+      setPageError(message);
+    }
   };
 
   // --- RENDER ---
@@ -279,9 +370,16 @@ const Slips: React.FC = () => {
 
       {pageError && (
         <div className="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-gray-800 dark:text-red-400" role="alert">
-          <span className="font-medium">Erro de Configuração!</span> {pageError}
+          <span className="font-medium">Erro!</span> {pageError}
         </div>
       )}
+
+      {success && (
+        <div className="p-4 mb-4 text-sm text-green-800 rounded-lg bg-green-50 dark:bg-gray-800 dark:text-green-400" role="alert">
+          <span className="font-medium">Sucesso!</span> {success}
+        </div>
+      )}
+
 
       {!loading && (
         <div className="space-y-6">
@@ -296,7 +394,7 @@ const Slips: React.FC = () => {
               className="lg:col-span-3 h-full"
               isGenerationDisabled={isGenerationDisabled || !!pageError}
             />
-            <div className="lg:col-span-4">
+            <div className="lg:col-span-3 h-full">
               <SlipSettings
                 extraFee={extraFee}
                 setExtraFee={setExtraFee}
@@ -311,7 +409,7 @@ const Slips: React.FC = () => {
               gasReadings={gasReadings}
               gasUnitPrice={gasUnitPrice}
               onOpenGasModal={handleOpenGasModal}
-              className="lg:col-span-5"
+              className="lg:col-span-6 h-full"
             />
           </div>
 
