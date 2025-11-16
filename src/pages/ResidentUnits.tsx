@@ -3,24 +3,9 @@ import PageMeta from '../components/common/PageMeta';
 import PageBreadcrumb from '../components/common/PageBreadCrumb';
 import ComponentCard from '../components/common/ComponentCard';
 import DataTable, { ColumnDef } from '../components/tables/DataTable';
-import { PencilIcon } from "../icons"; // Import only the pencil icon
-
-// Interface for the notification recipients
-interface Recipient {
-  name: string;
-  email: string;
-}
-
-// This interface now matches the full data structure provided by the API
-interface ResidentUnit {
-  id: string;
-  unit: string;
-  idealFraction: number;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string | null; // Can be null
-  notificationRecipients: Recipient[];
-}
+import { PencilIcon } from "../icons";
+import EditResidentUnitModal from "../components/modal/EditResidentUnitModal";
+import { ResidentUnit } from "../types/residentUnit"; // Import type from the new file
 
 const ResidentUnits: React.FC = () => {
   const [residentUnits, setResidentUnits] = useState<ResidentUnit[]>([]);
@@ -135,15 +120,12 @@ const ResidentUnits: React.FC = () => {
           )}
         </ComponentCard>
         
-        {/* 
-        // TODO: Create and import the EditResidentUnitModal component
         <EditResidentUnitModal
           isOpen={isEditModalOpen}
           onClose={() => setIsEditModalOpen(false)}
           unit={selectedUnit}
           onUnitUpdate={fetchResidentUnits}
-        /> 
-        */}
+        />
       </div>
     </>
   );
