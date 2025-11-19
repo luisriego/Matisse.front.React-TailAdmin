@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 import { Modal } from '../ui/modal';
-import { ResidentUnit, Recipient } from '../../types/residentUnit';
+import { Recipient, ResidentUnit } from '../../types/residentUnit';
 import { TrashBinIcon } from '../../icons';
 
-interface EditResidentUnitModalProps {
+interface CreateResidentUnitModalProps {
   isOpen: boolean;
   onClose: () => void;
-  unit: ResidentUnit | null;
-  onUnitUpdate: () => void;
+  onUnitCreate: () => void;
+  residentUnits: ResidentUnit[];
 }
 
-const EditResidentUnitModal: React.FC<EditResidentUnitModalProps> = ({ isOpen, onClose, unit, onUnitUpdate }) => {
+const CreateResidentUnitModal: React.FC<CreateResidentUnitModalProps> = ({ isOpen, onClose, onUnitCreate, residentUnits }) => {
+  const [unit, setUnit] = useState('');
   const [idealFraction, setIdealFraction] = useState<number | string>('');
+  const [maxIdealFraction, setMaxIdealFraction] = useState<number>(1);
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [newRecipientName, setNewRecipientName] = useState('');
   const [newRecipientEmail, setNewRecipientEmail] = useState('');
@@ -20,11 +23,33 @@ const EditResidentUnitModal: React.FC<EditResidentUnitModalProps> = ({ isOpen, o
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (unit) {
-      setIdealFraction(unit.idealFraction);
-      setRecipients(unit.notificationRecipients || []);
+    if (isOpen) {
+      const totalFraction = residentUnits.reduce((sum, unit) => sum + unit.idealFraction, 0);
+      const remainingFraction = 1 - totalFraction;
+      const calculatedMax = remainingFraction > 0 ? remainingFraction : 0;
+      
+      setMaxIdealFraction(calculatedMax);
+      setIdealFraction(calculatedMax.toFixed(8));
+      
+      // Reset other fields
+      setUnit('');
+      setRecipients([]);
+      setNewRecipientName('');
+      setNewRecipientEmail('');
+      setError(null);
     }
-  }, [unit]);
+  }, [isOpen, residentUnits]);
+
+  const handleIdealFractionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    if (Number(value) > maxIdealFraction) {
+      setError(`A fração ideal não pode ser maior que ${maxIdealFraction.toFixed(8)}.`);
+      setIdealFraction(maxIdealFraction.toFixed(8));
+    } else {
+      setError(null);
+      setIdealFraction(value);
+    }
+  };
 
   const handleAddRecipient = () => {
     if (newRecipientName && newRecipientEmail) {
@@ -40,10 +65,10 @@ const EditResidentUnitModal: React.FC<EditResidentUnitModalProps> = ({ isOpen, o
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!unit) return;
-
     setIsSubmitting(true);
     setError(null);
+
+    const unitId = uuidv4();
 
     try {
       const token = localStorage.getItem("token");
@@ -51,50 +76,46 @@ const EditResidentUnitModal: React.FC<EditResidentUnitModalProps> = ({ isOpen, o
         throw new Error("Token de autenticação não encontrado.");
       }
 
-      const promises = [];
+      // Step 1: Create the resident unit with an empty recipients list
+      const createUnitResponse = await fetch(`/api/v1/resident-unit/create`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          id: unitId,
+          unit,
+          idealFraction: Number(idealFraction),
+          notificationRecipients: [],
+        }),
+      });
 
-      // 1. Handle idealFraction update
-      if (Number(idealFraction) !== unit.idealFraction) {
-        const idealFractionPromise = fetch(`/api/v1/resident-unit/${unit.id}/ideal-fraction`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            idealFraction: Number(idealFraction),
-          }),
-        });
-        promises.push(idealFractionPromise);
+      if (!createUnitResponse.ok) {
+        const errorData = await createUnitResponse.json().catch(() => ({ message: 'Falha ao criar a unidade residencial.' }));
+        throw new Error(errorData.message || 'Ocorreu um erro desconhecido.');
       }
 
-      // 2. Handle recipients update
-      const originalRecipients = unit.notificationRecipients || [];
-      const addedRecipients = recipients.filter(r => !originalRecipients.some(o => o.email === r.email));
-      
-      for (const recipient of addedRecipients) {
-        const addRecipientPromise = fetch(`/api/v1/resident-unit/${unit.id}/recipients`, {
+      // Step 2: If unit creation is successful, add recipients one by one
+      if (recipients.length > 0) {
+        for (const recipient of recipients) {
+          const addRecipientResponse = await fetch(`/api/v1/resident-unit/${unitId}/recipients`, {
             method: 'PATCH',
             headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify(recipient),
-        });
-        promises.push(addRecipientPromise);
-      }
+          });
 
-      if (promises.length > 0) {
-        const responses = await Promise.all(promises);
-        for (const response of responses) {
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ message: 'Falha ao atualizar a unidade residencial.' }));
-            throw new Error(errorData.message || 'Ocorreu um erro desconhecido.');
+          if (!addRecipientResponse.ok) {
+            const errorData = await addRecipientResponse.json().catch(() => ({ message: `Falha ao adicionar o destinatário ${recipient.email}.` }));
+            throw new Error(errorData.message || `Ocorreu um erro desconhecido ao adicionar ${recipient.email}.`);
           }
         }
       }
 
-      onUnitUpdate();
+      onUnitCreate();
       onClose();
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -108,24 +129,25 @@ const EditResidentUnitModal: React.FC<EditResidentUnitModalProps> = ({ isOpen, o
   };
 
   const isAddRecipientDisabled = !newRecipientName || !newRecipientEmail;
-  
-  const hasChanges = () => {
-    if (!unit) return false;
-    if (Number(idealFraction) !== unit.idealFraction) return true;
-    if (recipients.length !== (unit.notificationRecipients || []).length) return true;
-    
-    const originalEmails = (unit.notificationRecipients || []).map(r => r.email).sort();
-    const currentEmails = recipients.map(r => r.email).sort();
-    if (JSON.stringify(originalEmails) !== JSON.stringify(currentEmails)) return true;
-
-    return false;
-  };
-
-  const isSubmitDisabled = !hasChanges() || isSubmitting;
+  const isSubmitDisabled = !unit || isSubmitting;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Editar Unidade: ${unit?.unit}`}>
+    <Modal isOpen={isOpen} onClose={onClose} title="Criar Nova Unidade Residencial">
       <form onSubmit={handleSubmit} className="space-y-6">
+        <div>
+          <label htmlFor="unit" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Unidade
+          </label>
+          <input
+            type="text"
+            id="unit"
+            value={unit}
+            onChange={(e) => setUnit(e.target.value)}
+            className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-500 focus:border-brand-500 sm:text-sm dark:bg-gray-800 dark:border-gray-600 dark:text-white"
+            required
+          />
+        </div>
+
         <div>
           <label htmlFor="idealFraction" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
             Fração Ideal
@@ -134,10 +156,11 @@ const EditResidentUnitModal: React.FC<EditResidentUnitModalProps> = ({ isOpen, o
             type="number"
             id="idealFraction"
             value={idealFraction}
-            onChange={(e) => setIdealFraction(e.target.value)}
+            onChange={handleIdealFractionChange}
             className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-500 focus:border-brand-500 sm:text-sm dark:bg-gray-800 dark:border-gray-600 dark:text-white"
             required
             step="0.00000001"
+            max={maxIdealFraction.toFixed(8)}
           />
         </div>
 
@@ -180,7 +203,7 @@ const EditResidentUnitModal: React.FC<EditResidentUnitModalProps> = ({ isOpen, o
             Cancelar
           </button>
           <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-brand-500 rounded-lg hover:bg-brand-600 disabled:bg-brand-300" disabled={isSubmitDisabled}>
-            {isSubmitting ? 'Salvando...' : 'Salvar'}
+            {isSubmitting ? 'Criando...' : 'Criar'}
           </button>
         </div>
       </form>
@@ -188,4 +211,4 @@ const EditResidentUnitModal: React.FC<EditResidentUnitModalProps> = ({ isOpen, o
   );
 };
 
-export default EditResidentUnitModal;
+export default CreateResidentUnitModal;
