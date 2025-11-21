@@ -554,6 +554,33 @@ Deletes a recurring expense.
 
 The Income context manages all incomes.
 
+### `GET /api/v1/income-types`
+
+Retrieves a list of all income types.
+
+**Responses:**
+
+-   `200 OK`: The request was successful.
+
+**Example Response:**
+
+```json
+[
+  {
+    "id": "c8a8b8e0-fb9b-4b6e-8b0e-1b2a3c4d5e6f",
+    "name": "Taxa Condominial",
+    "code": "RC1TC",
+    "description": "Recebimento da cota condominial mensal regular dos condôminos."
+  },
+  {
+    "id": "d9b9c9f1-a2b3-4c5d-9e8f-2c3d4e5f6a7b",
+    "name": "Juros e Multas por Atraso",
+    "code": "RC2JM",
+    "description": "Recebimento de juros e multas por pagamento de cotas condominiais em atraso."
+  }
+]
+```
+
 ### `PUT /api/v1/incomes/enter`
 
 Enters a new income.
@@ -712,7 +739,7 @@ Retrieves the current gas price per m³.
 
 ```json
 {
-    "price_per_m3_in_cents": 587
+  "price_per_m3_in_cents": 587
 }
 ```
 
@@ -720,9 +747,9 @@ Retrieves the current gas price per m³.
 
 ```json
 {
-    "class": "App\\Context\\Gas\\Domain\\Exception\\GasPriceNotFoundException",
-    "code": 404,
-    "message": "O preço do gás ainda não foi definido."
+  "class": "App\\Context\\Gas\\Domain\\Exception\\GasPriceNotFoundException",
+  "code": 404,
+  "message": "O preço do gás ainda não foi definido."
 }
 ```
 

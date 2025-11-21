@@ -11,11 +11,17 @@ interface ResidentUnit {
   unit: string;
 }
 
+interface IncomeType {
+  id: string;
+  name: string;
+}
+
 interface AddIncomeModalProps {
   isOpen: boolean;
   onClose: () => void;
   onIncomeAdded: () => void;
   residentUnits: ResidentUnit[];
+  incomeTypes: IncomeType[];
 }
 
 const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
@@ -23,6 +29,7 @@ const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
   onClose,
   onIncomeAdded,
   residentUnits,
+  incomeTypes,
 }) => {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
@@ -155,7 +162,10 @@ const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
 
                 <div className="sm:col-span-2">
                   <label htmlFor="type" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Tipo de Ingresso</label>
-                  <input type="text" id="type" value={type} onChange={(e) => setType(e.target.value)} required className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800" placeholder='Aluguel, Taxa, etc.' />
+                  <select id="type" value={type} onChange={(e) => setType(e.target.value)} required className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800">
+                    <option value="">Selecione um tipo</option>
+                    {incomeTypes.map(type => <option key={type.id} value={type.id}>{type.name}</option>)}
+                  </select>
                 </div>
 
                 <div className="sm:col-span-4">

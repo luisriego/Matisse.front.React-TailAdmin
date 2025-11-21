@@ -5,21 +5,7 @@ import SuccessAlert from '../common/alerts/SuccessAlert';
 import ErrorAlert from '../common/alerts/ErrorAlert';
 import DatePicker from '../form/date-picker';
 import { Hook } from 'flatpickr/dist/types/options';
-
-interface ExpenseType {
-  id: string;
-  name: string;
-}
-
-interface Account {
-  id: string;
-  name: string;
-}
-
-interface ResidentUnit {
-  id: string;
-  unit: string;
-}
+import { ExpenseType, ResidentUnit, Account } from '../../types'; // Import shared types
 
 interface AddExpenseModalProps {
   isOpen: boolean;
@@ -28,7 +14,7 @@ interface AddExpenseModalProps {
   expenseTypes: ExpenseType[];
   residentUnits: ResidentUnit[];
   accounts: Account[];
-  startAsRecurring?: boolean; // New optional prop
+  startAsRecurring?: boolean;
 }
 
 const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
@@ -38,7 +24,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   expenseTypes,
   residentUnits,
   accounts,
-  startAsRecurring = false, // Default to false
+  startAsRecurring = false,
 }) => {
   const [isRecurring, setIsRecurring] = useState(startAsRecurring);
   const [description, setDescription] = useState('');
@@ -68,7 +54,6 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
     }
   };
 
-  // Limpa o formulário quando o modal é fechado o se abre con un nuevo estado inicial
   useEffect(() => {
     if (!isOpen) {
       setIsRecurring(startAsRecurring);
@@ -86,7 +71,6 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       setSuccess(null);
       setHasPredefinedAmount(false);
     } else {
-      // When modal opens, set initial isRecurring state based on prop
       setIsRecurring(startAsRecurring);
     }
   }, [isOpen, startAsRecurring]);
@@ -117,9 +101,9 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
         throw new Error("Token de autenticação não encontrado.");
       }
 
-      let endpoint = '/api/v1/expenses';
-      let method = 'POST';
-      let payload: any;
+      let endpoint: string;
+      let method: string;
+      let payload: object;
 
       if (isRecurring) {
         endpoint = '/api/v1/recurring-expenses/create';
@@ -141,6 +125,8 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
           hasPredefinedAmount: hasPredefinedAmount,
         };
       } else {
+        endpoint = '/api/v1/expenses/enter';
+        method = 'PUT';
         if (!expenseDate) {
           throw new Error("Por favor, selecione a data da despesa.");
         }
@@ -175,8 +161,12 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       setTimeout(() => {
         onClose();
       }, 1000);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("An unknown error occurred.");
+      }
     } finally {
       setLoading(false);
     }

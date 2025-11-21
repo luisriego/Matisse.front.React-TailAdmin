@@ -68,7 +68,7 @@ const ResidentUnits: React.FC = () => {
       key: 'unit',
       header: 'Unidade',
       className: 'w-48',
-      cell: (unit) => <span className="font-medium text-gray-800 text-theme-sm dark:text-white/90">{unit.unit}</span>,
+      cell: (unit) => <span className="font-medium text-gray-800 text-theme-sm dark:text-white/90">{`Apto. ${unit.unit}`}</span>,
     },
     {
       key: 'idealFraction',

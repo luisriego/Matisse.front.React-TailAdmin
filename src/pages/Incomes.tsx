@@ -10,7 +10,6 @@ interface ResidentUnit {
   unit: string;
 }
 
-// Define a new interface for the IncomeType object
 interface IncomeType {
   id: string;
   name: string;
@@ -18,30 +17,26 @@ interface IncomeType {
   description: string;
 }
 
-// Interface for Income, adapted from Expense and API doc
 interface Income {
   id: string;
   description: string;
-  amount: number; // in cents
+  amount: number;
   dueDate: string;
   paidAt?: string | null;
   createdAt?: string;
   residentUnitId: string;
-  type: IncomeType; // Change type from string to IncomeType
+  type: IncomeType;
 }
 
-// Interface for the API response for a single income, based on GET /api/v1/incomes
 interface ApiIncome {
-  id:string; // Assuming ID is always present, even if not in example
+  id:string;
   residentUnitId: string;
   amount: number;
-  type: IncomeType; // Change type from string to IncomeType
-  dueDate: string; // Directly a string
+  type: IncomeType;
+  dueDate: string;
   description: string;
-  // paidAt and createdAt are not in the example for GET /api/v1/incomes
 }
 
-// Interface for the API response of resident units
 interface ApiResidentUnit {
   id: string;
   unit: string;
@@ -49,26 +44,33 @@ interface ApiResidentUnit {
 
 const Incomes: React.FC = () => {
   const [residentUnits, setResidentUnits] = useState<ResidentUnit[]>([]);
+  const [incomeTypes, setIncomeTypes] = useState<IncomeType[]>([]);
   const [incomes, setIncomes] = useState<Income[]>([]);
 
   const [loadingIncomes, setLoadingIncomes] = useState(true);
   const [incomesError, setIncomesError] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
-  // Load data for selectors (Resident Units)
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
         const token = localStorage.getItem("token");
         if (!token) throw new Error("Token não encontrado.");
 
-        // Load Resident Units from API
-        const unitsResponse = await fetch('/api/v1/resident-unit/actives', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const headers = { Authorization: `Bearer ${token}` };
+
+        const [unitsResponse, incomeTypesResponse] = await Promise.all([
+          fetch('/api/v1/resident-unit/actives', { headers }),
+          fetch('/api/v1/income-types', { headers }),
+        ]);
+
         if (!unitsResponse.ok) throw new Error('Falha ao carregar unidades residenciais.');
         const unitsData: ApiResidentUnit[] = await unitsResponse.json();
         setResidentUnits(unitsData);
+
+        if (!incomeTypesResponse.ok) throw new Error('Falha ao carregar tipos de ingresso.');
+        const incomeTypesData: IncomeType[] = await incomeTypesResponse.json();
+        setIncomeTypes(incomeTypesData);
 
       } catch (err) {
         console.error("Erro ao carregar dados iniciais:", err);
@@ -86,7 +88,6 @@ const Incomes: React.FC = () => {
         throw new Error("Token de autenticação não encontrado.");
       }
 
-      // Use the /api/v1/incomes endpoint to get all incomes
       const response = await fetch(`/api/v1/incomes`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -104,11 +105,8 @@ const Incomes: React.FC = () => {
 
       const data: ApiIncome[] = await response.json();
 
-      // Map API response to frontend structure
       const formattedIncomes: Income[] = data.map(inc => ({
         ...inc,
-        // dueDate is already a string, no need for .date
-        // paidAt and createdAt are not provided by this endpoint, so they will be undefined/null
       }));
 
       setIncomes(formattedIncomes);
@@ -120,7 +118,6 @@ const Incomes: React.FC = () => {
     }
   }, []);
 
-  // Initial load of incomes
   useEffect(() => {
     fetchIncomes();
   }, [fetchIncomes]);
@@ -213,6 +210,7 @@ const Incomes: React.FC = () => {
           onClose={() => setIsAddModalOpen(false)}
           onIncomeAdded={fetchIncomes}
           residentUnits={residentUnits}
+          incomeTypes={incomeTypes}
         />
       </div>
     </>
