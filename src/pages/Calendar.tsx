@@ -3,29 +3,27 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
-import { EventInput, EventContentArg, EventClickArg } from "@fullcalendar/core";
+import {
+  EventContentArg,
+  EventClickArg,
+  DatesSetArg,
+  EventApi, // Importar EventApi
+  EventMountArg, // Importar EventMountArg
+} from "@fullcalendar/core";
 import tippy from 'tippy.js';
 import 'tippy.js/dist/tippy.css';
 
 import PageMeta from "../components/common/PageMeta";
 import ViewEventModal from "../components/modal/ViewEventModal";
-import { Expense, Income } from "../types";
-
-interface CalendarEvent extends EventInput {
-  extendedProps: {
-    calendar: string;
-    amount: number;
-    type: 'Expense' | 'Income';
-  };
-}
+import { Expense, Income, FinancialEvent } from "../types"; // Importar FinancialEvent
 
 const Calendar: React.FC = () => {
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [events, setEvents] = useState<FinancialEvent[]>([]);
+  const [loading, setLoading] = useState<boolean>(true); // Tipado específico
   const [error, setError] = useState<string | null>(null);
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [currentDate, setCurrentDate] = useState<Date>(new Date());
+  const [selectedEvent, setSelectedEvent] = useState<EventApi | null>(null); // Usar EventApi
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false); // Tipado específico
   const calendarRef = useRef<FullCalendar>(null);
 
   useEffect(() => {
@@ -38,7 +36,6 @@ const Calendar: React.FC = () => {
 
         const year = date.getFullYear();
         const month = date.getMonth() + 1;
-        console.log(`Fetching events for ${year}-${month}`);
 
         const headers = { Authorization: `Bearer ${token}` };
 
@@ -53,20 +50,17 @@ const Calendar: React.FC = () => {
         const expenses: Expense[] = await expensesRes.json();
         const incomes: Income[] = await incomesRes.json();
 
-        console.log("Fetched Expenses:", expenses);
-        console.log("Fetched Incomes:", incomes);
-
-        const expenseEvents: CalendarEvent[] = expenses.map((expense) => ({
+        const expenseEvents: FinancialEvent[] = expenses.map((expense) => ({
           id: `expense-${expense.id}`,
-          title: expense.description || "Expense",
+          title: expense.type.name || "Expense",
           start: expense.dueDate.split(" ")[0],
           allDay: true,
           extendedProps: { calendar: "Danger", amount: expense.amount, type: 'Expense' },
         }));
 
-        const incomeEvents: CalendarEvent[] = incomes.map((income) => ({
+        const incomeEvents: FinancialEvent[] = incomes.map((income) => ({
           id: `income-${income.id}`,
-          title: income.description || "Income",
+          title: income.type.name || "Income",
           start: income.dueDate.split(" ")[0],
           allDay: true,
           extendedProps: { calendar: "Success", amount: income.amount, type: 'Income' },
@@ -85,22 +79,25 @@ const Calendar: React.FC = () => {
     void fetchEventsForMonth(currentDate);
   }, [currentDate]);
 
-  const handleNavClick = (direction: 'prev' | 'next') => {
-    setCurrentDate(prevDate => {
-      const newDate = new Date(prevDate);
-      newDate.setDate(1); // Set to the first of the month to avoid date overflow issues
-      newDate.setMonth(newDate.getMonth() + (direction === 'prev' ? -1 : 1));
-      return newDate;
-    });
-  };
-
   const handleEventClick = (clickInfo: EventClickArg) => {
-    setSelectedEvent(clickInfo.event as unknown as CalendarEvent);
+    setSelectedEvent(clickInfo.event); // clickInfo.event ya es de tipo EventApi
     setIsModalOpen(true);
   };
 
-  const handleEventDidMount = (info: any) => {
+  const handleEventDidMount = (info: EventMountArg) => { // Usar EventMountArg
     tippy(info.el, { content: info.event.title, placement: 'top' });
+  };
+
+  const handleDatesSet = (dateInfo: DatesSetArg) => {
+    const newDisplayedMonth = dateInfo.view.currentStart.getMonth();
+    const newDisplayedYear = dateInfo.view.currentStart.getFullYear();
+
+    if (
+      newDisplayedMonth !== currentDate.getMonth() ||
+      newDisplayedYear !== currentDate.getFullYear()
+    ) {
+      setCurrentDate(new Date(newDisplayedYear, newDisplayedMonth, 1));
+    }
   };
 
   const renderCalendar = () => {
@@ -114,20 +111,16 @@ const Calendar: React.FC = () => {
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
         initialDate={currentDate}
         headerToolbar={{
-          left: "prevButton,nextButton",
+          left: "prev,next",
           center: "title",
           right: "dayGridMonth,timeGridWeek,timeGridDay",
-        }}
-        customButtons={{
-          prevButton: { text: '<', click: () => handleNavClick('prev') },
-          nextButton: { text: '>', click: () => handleNavClick('next') },
         }}
         events={events}
         eventContent={renderEventContent}
         eventClick={handleEventClick}
         eventDidMount={handleEventDidMount}
+        datesSet={handleDatesSet}
         selectable={false}
-        noEventsContent="Nenhum evento financeiro encontrado para este mês."
       />
     );
   };

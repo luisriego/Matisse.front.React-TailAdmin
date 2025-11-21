@@ -1,26 +1,21 @@
 import React from 'react';
 import { Modal } from '../ui/modal';
-import { EventInput } from '@fullcalendar/core';
-
-interface CalendarEvent extends EventInput {
-  extendedProps: {
-    calendar: string;
-    amount: number;
-    type: 'Expense' | 'Income';
-  };
-}
+import { EventApi } from '@fullcalendar/core'; // Importar EventApi
 
 interface ViewEventModalProps {
   isOpen: boolean;
   onClose: () => void;
-  event: CalendarEvent | null;
+  event: EventApi | null; // Cambiar el tipo a EventApi
 }
 
 const ViewEventModal: React.FC<ViewEventModalProps> = ({ isOpen, onClose, event }) => {
   if (!event) return null;
 
+  // Acceder a las propiedades directamente desde event.
+  // extendedProps están directamente en EventApi, no anidadas.
   const { title, start, extendedProps } = event;
-  const { amount, type } = extendedProps;
+  // Hacemos una aserción de tipo para extendedProps para que TypeScript sepa su estructura
+  const { amount, type } = extendedProps as { amount: number; type: 'Expense' | 'Income'; calendar: string };
 
   const formattedAmount = (amount / 100).toLocaleString('pt-BR', {
     style: 'currency',
@@ -36,7 +31,8 @@ const ViewEventModal: React.FC<ViewEventModalProps> = ({ isOpen, onClose, event 
         <div>
           <h3 className="text-lg font-semibold text-gray-800 dark:text-white">{title}</h3>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {new Date(start as string).toLocaleDateString('pt-BR', {
+            {/* start es un objeto Date, por lo que podemos llamar toLocaleDateString directamente */}
+            {start?.toLocaleDateString('pt-BR', {
               weekday: 'long',
               year: 'numeric',
               month: 'long',
@@ -62,7 +58,7 @@ const ViewEventModal: React.FC<ViewEventModalProps> = ({ isOpen, onClose, event 
         <button
           onClick={onClose}
           type="button"
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium transition-colors bg-white rounded-lg text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-300 dark:ring-gray-600 dark:hover:bg-gray-600"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium transition-colors bg-white rounded-lg text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-600 dark:text-gray-300 dark:ring-gray-600 dark:hover:bg-gray-600"
         >
           Fechar
         </button>

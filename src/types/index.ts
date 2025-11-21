@@ -82,3 +82,15 @@ export interface GasReading {
   previousReading: number;
   currentReading: string;
 }
+
+export interface FinancialEvent {
+  id: string;
+  title: string;
+  start: string;
+  allDay: boolean;
+  extendedProps: {
+    calendar: "Danger" | "Success";
+    amount: number;
+    type: "Expense" | "Income";
+  };
+}
