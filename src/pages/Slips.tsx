@@ -130,11 +130,15 @@ const Slips: React.FC = () => {
           const priceInReais = gasPriceData.price_per_m3_in_cents / 100;
           setGasUnitPrice(priceInReais.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
         } else {
-          const errorData = await gasPriceRes.json();
-          const originalMessage = errorData.message || 'Falha ao carregar o preço do gás.';
-          const parts = originalMessage.split(':');
-          const finalMessage = parts.length > 1 ? parts[parts.length - 1].trim() : originalMessage;
-          setPageError(finalMessage);
+          if (gasPriceRes.status === 404) {
+            setPageError("O preço do gás ainda não foi definido.");
+          } else {
+            const errorData = await gasPriceRes.json();
+            const originalMessage = errorData.message || 'Falha ao carregar o preço do gás.';
+            const parts = originalMessage.split(':');
+            const finalMessage = parts.length > 1 ? parts[parts.length - 1].trim() : originalMessage;
+            setPageError(finalMessage);
+          }
         }
 
       } catch (err: unknown) {

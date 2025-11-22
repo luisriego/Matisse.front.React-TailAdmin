@@ -12,6 +12,7 @@ import {
 } from "@fullcalendar/core";
 import tippy from 'tippy.js';
 import 'tippy.js/dist/tippy.css';
+import ptBrLocale from '@fullcalendar/core/locales/pt-br'; // Importar el locale portugués
 
 import PageMeta from "../components/common/PageMeta";
 import ViewEventModal from "../components/modal/ViewEventModal";
@@ -120,7 +121,8 @@ const Calendar: React.FC = () => {
         eventClick={handleEventClick}
         eventDidMount={handleEventDidMount}
         datesSet={handleDatesSet}
-        selectable={false}
+        selectable={true}
+        locale={ptBrLocale} // Añadido: Configurar el locale a portugués
       />
     );
   };

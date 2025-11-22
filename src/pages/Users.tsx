@@ -33,8 +33,8 @@ export default function Users() {
         const data = await response.json();
         setUsers(data);
       } catch (error: any) {
-        setError(error.message);
         console.error("Failed to fetch users:", error);
+        setError("Não foi possível carregar os usuários. Por favor, tente novamente mais tarde.");
       } finally {
         setLoading(false);
       }
@@ -47,6 +47,7 @@ export default function Users() {
     {
       key: "user",
       header: "User",
+      className: "text-left", // Align header and cell content to the left
       cell: (user) => (
         <div>
           <span className="block font-medium text-gray-800 text-theme-sm dark:text-white/90">
@@ -59,17 +60,43 @@ export default function Users() {
       ),
     },
     {
-      key: "unit",
-      header: "Unit",
+      key: "phoneNumber",
+      header: "Phone",
+      className: "text-left", // Align header and cell content to the left
       cell: (user) => (
         <span className="text-gray-500 text-theme-sm dark:text-gray-400">
-          {user.residentUnit?.unit}
+          {user.phoneNumber || "N/A"}
         </span>
+      ),
+    },
+    {
+      key: "unit",
+      header: "Unit",
+      className: "text-left", // Align header and cell content to the left
+      cell: (user) => (
+        <span className="text-gray-500 text-theme-sm dark:text-gray-400">
+          {user.residentUnit?.unit || "N/A"}
+        </span>
+      ),
+    },
+    {
+      key: "roles",
+      header: "Roles",
+      className: "text-left", // Align header and cell content to the left
+      cell: (user) => (
+        <div className="flex flex-wrap gap-1">
+          {user.roles.map((role) => (
+            <Badge key={role} size="sm" color="primary">
+              {role.replace('ROLE_', '')}
+            </Badge>
+          ))}
+        </div>
       ),
     },
     {
       key: "status",
       header: "Status",
+      className: "text-left", // Align header and cell content to the left
       cell: (user) => (
         <Badge size="sm" color={user.isActive ? "success" : "error"}>
           {user.isActive ? "Active" : "Inactive"}
@@ -84,7 +111,7 @@ export default function Users() {
     }
 
     if (error) {
-      return <p>Erro ao carregar dados: {error}</p>;
+      return <p className="text-red-500">{error}</p>;
     }
 
     return <DataTable columns={columns} data={users} />;
