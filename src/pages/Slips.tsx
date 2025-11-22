@@ -4,6 +4,7 @@ import PageBreadcrumb from '../components/common/PageBreadCrumb';
 import { Hook } from 'flatpickr/dist/types/options';
 import AddGasConsumptionModal from "../components/modal/AddGasConsumptionModal";
 import ConfirmationModal from "../components/modal/ConfirmationModal";
+import DefineGasPriceModal from "../components/modal/DefineGasPriceModal";
 import SlipSettings from "../components/slips/SlipSettings";
 import GasConsumptionCard from "../components/gas/GasConsumptionCard";
 import GenerateSlipsCard from "../components/slips/GenerateSlipsCard";
@@ -15,7 +16,6 @@ const Slips: React.FC = () => {
   // --- STATE MANAGEMENT ---
   const [targetMonth, setTargetMonth] = useState<Date | null>(new Date());
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -32,191 +32,117 @@ const Slips: React.FC = () => {
   const [gasUnitPrice, setGasUnitPrice] = useState('');
 
   const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
-  const [confirmationModalContent, setConfirmationModalContent] = useState({ title: '', message: '' });
+  const [confirmationModalContent] = useState({ title: '', message: '' });
   const [isGenerating, setIsGenerating] = useState(false);
+  
+  const [isDefineGasPriceModalOpen, setIsDefineGasPriceModalOpen] = useState(false);
+  const [isSavingGasPrice, setIsSavingGasPrice] = useState(false);
 
   const isGenerationDisabled = !extraFee || !reserveFund || !gasUnitPrice || gasReadings.some(reading => !reading.currentReading);
 
-  // --- Helper to fetch reading for a specific unit and month
-  const fetchSpecificReading = async (unitId: string, year: number, month: number, token: string): Promise<number> => {
+  const fetchSpecificReading = async (unitId: string, year: number, month: number, token: string): Promise<number | null> => {
     const headers = { Authorization: `Bearer ${token}` };
     try {
-      // API expects 1-indexed month
       const response = await fetch(`/api/v1/gas/resident-units/${unitId}/reading/${year}/${month}`, { headers });
       if (response.ok) {
         const data = await response.json();
         return data.reading;
-      } else if (response.status === 404) {
-        return 0; // No reading found for the period
-      } else {
-        console.error(`Error fetching reading for unit ${unitId} in ${month}/${year}:`, response.statusText);
-        return 0;
       }
-    } catch (err) {
-      console.error(`Exception fetching reading for unit ${unitId} in ${month}/${year}:`, err);
-      return 0;
+      return null;
+    } catch {
+      return null;
     }
   };
 
-  // --- DATA FETCHING ---
-  useEffect(() => {
-    const fetchInitialData = async () => {
-      setLoading(true);
-      setPageError(null);
-      try {
-        const token = localStorage.getItem("token");
-        if (!token) throw new Error("Token não encontrado.");
-        const headers = { Authorization: `Bearer ${token}` };
+  const fetchInitialData = useCallback(async () => {
+    setLoading(true);
+    setPageError(null);
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) throw new Error("Token não encontrado.");
+      const headers = { Authorization: `Bearer ${token}` };
 
-        const [typesRes, unitsRes, accountsRes, gasPriceRes] = await Promise.all([
-          fetch('/api/v1/expense-types', { headers }),
-          fetch('/api/v1/resident-unit/actives', { headers }),
-          fetch('/api/v1/accounts', { headers }),
-          fetch('/api/v1/gas/price', { headers }),
-        ]);
+      const [typesRes, unitsRes, accountsRes, gasPriceRes] = await Promise.all([
+        fetch('/api/v1/expense-types', { headers }),
+        fetch('/api/v1/resident-unit/actives', { headers }),
+        fetch('/api/v1/accounts', { headers }),
+        fetch('/api/v1/gas/price', { headers }),
+      ]);
 
-        if (unitsRes.ok) {
-          const unitsData: ResidentUnit[] = await unitsRes.json();
-          setResidentUnits(unitsData);
+      if (unitsRes.ok) {
+        const unitsData: ResidentUnit[] = await unitsRes.json();
+        setResidentUnits(unitsData);
 
-          // Calculate the month for which we need the previous reading (targetMonth - 2)
-          const previousReadingDate = new Date(targetMonth || new Date());
-          previousReadingDate.setMonth(previousReadingDate.getMonth() - 2);
-          const previousReadingYear = previousReadingDate.getFullYear();
-          const previousReadingMonth = previousReadingDate.getMonth() + 1; // 1-indexed for API
+        const previousReadingDate = new Date(targetMonth || new Date());
+        previousReadingDate.setMonth(previousReadingDate.getMonth() - 2);
+        const previousReadingYear = previousReadingDate.getFullYear();
+        const previousReadingMonth = previousReadingDate.getMonth() + 1;
 
-          // Calculate the month for which we need the current reading (targetMonth - 1)
-          const currentReadingDate = new Date(targetMonth || new Date());
-          currentReadingDate.setMonth(currentReadingDate.getMonth() - 1);
-          const currentReadingYear = currentReadingDate.getFullYear();
-          const currentReadingMonth = currentReadingDate.getMonth() + 1; // 1-indexed for API
+        const currentReadingDate = new Date(targetMonth || new Date());
+        currentReadingDate.setMonth(currentReadingDate.getMonth() - 1);
+        const currentReadingYear = currentReadingDate.getFullYear();
+        const currentReadingMonth = currentReadingDate.getMonth() + 1;
 
-          const readingsPromises = unitsData.map(async unit => {
-            const prevReading = await fetchSpecificReading(unit.id, previousReadingYear, previousReadingMonth, token);
-            const currReading = await fetchSpecificReading(unit.id, currentReadingYear, currentReadingMonth, token);
-            return { prevReading, currReading };
-          });
-          const allReadingsData = await Promise.all(readingsPromises);
+        const readingsPromises = unitsData.map(async unit => {
+          const prevReading = await fetchSpecificReading(unit.id, previousReadingYear, previousReadingMonth, token);
+          const currReading = await fetchSpecificReading(unit.id, currentReadingYear, currentReadingMonth, token);
+          return { prevReading, currReading };
+        });
+        const allReadingsData = await Promise.all(readingsPromises);
 
-          const initialGasReadings: GasReading[] = unitsData.map((unit, index) => ({
+        setGasReadings(unitsData.map((unit, index) => {
+          const prev = allReadingsData[index].prevReading;
+          const curr = allReadingsData[index].currReading;
+          return {
             residentUnitId: unit.id,
             unit: unit.unit,
-            previousReading: allReadingsData[index].prevReading,
-            currentReading: allReadingsData[index].currReading.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }), // Format to string for input
-          }));
-          setGasReadings(initialGasReadings);
-
-        } else {
-          const errorData = await unitsRes.json();
-          throw new Error(errorData.message || 'Falha ao carregar unidades residenciais.');
-        }
-
-        if (typesRes.ok) {
-          const expenseTypesData = await typesRes.json();
-          setExpenseTypes(expenseTypesData);
-        } else {
-          console.error('Falha ao carregar tipos de despesa.');
-        }
-
-        if (accountsRes.ok) {
-          const accountsData = await accountsRes.json();
-          setAccounts(accountsData.accounts || []);
-        } else {
-          console.error('Falha ao carregar contas.');
-        }
-
-        if (gasPriceRes.ok) {
-          const gasPriceData = await gasPriceRes.json();
-          const priceInReais = gasPriceData.price_per_m3_in_cents / 100;
-          setGasUnitPrice(priceInReais.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-        } else {
-          const errorData = await gasPriceRes.json();
-          const originalMessage = errorData.message || 'Falha ao carregar o preço do gás.';
-          const parts = originalMessage.split(':');
-          const finalMessage = parts.length > 1 ? parts[parts.length - 1].trim() : originalMessage;
-          setPageError(finalMessage);
-        }
-
-      } catch (err: unknown) {
-        console.error("Erro ao carregar dados iniciais:", err);
-        if (err instanceof Error) {
-          const originalMessage = err.message;
-          const parts = originalMessage.split(':');
-          const finalMessage = parts.length > 1 ? parts[parts.length - 1].trim() : originalMessage;
-          setPageError(finalMessage);
-        } else {
-          setPageError("Ocorreu um erro desconhecido ao carregar os dados.");
-        }
-      } finally {
-        setLoading(false);
+            previousReading: prev,
+            currentReading: curr !== null ? curr.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : '',
+          };
+        }));
+      } else {
+        const errorData = await unitsRes.json();
+        throw new Error(errorData.message || 'Falha ao carregar unidades residenciais.');
       }
-    };
-    fetchInitialData();
-  }, [targetMonth]); // Re-run when targetMonth changes
 
-  // --- HANDLERS ---
+      if (typesRes.ok) setExpenseTypes(await typesRes.json());
+      if (accountsRes.ok) setAccounts((await accountsRes.json()).accounts || []);
+
+      if (gasPriceRes.ok) {
+        const gasPriceData = await gasPriceRes.json();
+        const priceInReais = gasPriceData.price_per_m3_in_cents / 100;
+        setGasUnitPrice(priceInReais.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+      } else if (gasPriceRes.status === 404) {
+        setIsDefineGasPriceModalOpen(true);
+        setPageError("O preço do gás ainda não foi definido. Por favor, insira os dados da fatura.");
+      } else {
+        const errorData = await gasPriceRes.json();
+        throw new Error(errorData.message || 'Falha ao carregar o preço do gás.');
+      }
+
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Ocorreu um erro desconhecido.";
+      setPageError(message);
+    } finally {
+      setLoading(false);
+    }
+  }, [targetMonth]);
+
+  useEffect(() => {
+    fetchInitialData();
+  }, [fetchInitialData]);
+
   const handleMonthChange: Hook = useCallback((selectedDates) => {
     if (selectedDates.length > 0) setTargetMonth(selectedDates[0]);
   }, []);
 
-  const handleGenerateSlips = async () => {
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-
-    if (!targetMonth) {
-      setError("Por favor, selecione um mês e ano para gerar os boletos.");
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) throw new Error("Token de autenticação não encontrado.");
-
-      const checkTotalResponse = await fetch('/api/v1/slips/check-total', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ amount: 400000 }),
-      });
-
-      if (checkTotalResponse.ok) {
-        const checkTotalData = await checkTotalResponse.json();
-        if (checkTotalData.status === 'alert_generated') {
-          setConfirmationModalContent({
-            title: 'Alerta de Contabilidade',
-            message: checkTotalData.message,
-          });
-          setLoading(false);
-          setIsConfirmationModalOpen(true);
-          return;
-        } else {
-          await proceedWithGeneration();
-        }
-      } else {
-        console.error("Error with check-total endpoint, proceeding with generation.");
-        await proceedWithGeneration();
-      }
-    } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('Ocorreu um erro desconhecido.');
-      }
-      setLoading(false);
-    }
-  };
-
   const proceedWithGeneration = async (force = false) => {
     setIsGenerating(true);
-    setError(null);
     setSuccess(null);
+    setPageError(null);
 
     if (!targetMonth) {
-      setError("Mês alvo não selecionado.");
+      setPageError("Mês alvo não selecionado.");
       setIsGenerating(false);
       return;
     }
@@ -257,19 +183,62 @@ const Slips: React.FC = () => {
       setSuccess(`Boletos para ${formattedMonth} gerados com sucesso!`);
     } catch (err: unknown) {
       if (err instanceof Error) {
-        setError(err.message);
+        setPageError(err.message);
       } else {
-        setError('Ocorreu un error desconocido al generar los boletos.');
+        setPageError('Ocorreu um erro desconhecido ao gerar os boletos.');
       }
     } finally {
       setIsGenerating(false);
       setIsConfirmationModalOpen(false);
-      setLoading(false);
+    }
+  };
+
+  const handleGenerateSlips = async () => {
+    await proceedWithGeneration();
+  };
+
+  const handleSaveGasPrice = async (billAmountInCents: number, bufferPercentage: number) => {
+    setIsSavingGasPrice(true);
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) throw new Error("Token de autenticação não encontrado.");
+
+      const response = await fetch('/api/v1/gas/price', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ billAmountInCents, bufferPercentage }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Falha ao definir o preço do gás.');
+      }
+      
+      const gasPriceRes = await fetch('/api/v1/gas/price', { headers: { Authorization: `Bearer ${token}` } });
+      if (gasPriceRes.ok) {
+        const gasPriceData = await gasPriceRes.json();
+        const priceInReais = gasPriceData.price_per_m3_in_cents / 100;
+        
+        setGasUnitPrice(priceInReais.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+        setPageError(null);
+        setIsDefineGasPriceModalOpen(false);
+        setSuccess("Preço do gás definido com sucesso!");
+      } else {
+        throw new Error('Falha ao recarregar o preço do gás após salvar.');
+      }
+
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        console.error("Erro ao salvar preço do gás:", err.message);
+        throw err;
+      }
+      throw new Error("Ocorreu um erro desconhecido ao salvar o preço do gás.");
+    } finally {
+      setIsSavingGasPrice(false);
     }
   };
 
   const handleOpenGasModal = (reading: GasReading) => {
-    // The reading object from the state now contains the correct previousReading and currentReading
     setSelectedGasReading(reading);
     setIsGasModalOpen(true);
   };
@@ -279,19 +248,25 @@ const Slips: React.FC = () => {
     setSelectedGasReading(null);
   };
 
-  const handleSaveGasConsumption = async (updatedReading: GasReading) => {
+  const handleSaveGasConsumption = async (updatedReading: GasReading, readingDate?: Date) => {
     setPageError(null);
     setSuccess(null);
 
     try {
       const token = localStorage.getItem("token");
       if (!token) throw new Error("Token de autenticação não encontrado.");
-      if (!targetMonth) throw new Error("Mês alvo não selecionado.");
 
-      const readingDate = new Date(targetMonth);
-      readingDate.setMonth(readingDate.getMonth() - 1);
-      const readingYear = readingDate.getFullYear();
-      const readingMonth = readingDate.getMonth() + 1; // 1-indexed for API
+      let dateForReading: Date;
+      if (readingDate) {
+        dateForReading = readingDate;
+      } else {
+        const newDate = new Date(targetMonth || new Date());
+        newDate.setMonth(newDate.getMonth() - 1);
+        dateForReading = newDate;
+      }
+
+      const readingYear = dateForReading.getFullYear();
+      const readingMonth = dateForReading.getMonth() + 1;
 
       const parseReadingInput = (value: string): number => {
         if (!value) return 0;
@@ -323,52 +298,23 @@ const Slips: React.FC = () => {
         throw new Error(errorData.message || 'Falha ao salvar a leitura de gás.');
       }
 
-      // After saving, re-fetch all previous and current readings to update the table correctly
-      const headers = { Authorization: `Bearer ${token}` };
-      const unitsData = residentUnits; // Use the already fetched resident units
-
-      const previousReadingDate = new Date(targetMonth);
-      previousReadingDate.setMonth(previousReadingDate.getMonth() - 2);
-      const previousReadingYear = previousReadingDate.getFullYear();
-      const previousReadingMonth = previousReadingDate.getMonth() + 1; // 1-indexed for API
-
-      const currentReadingDate = new Date(targetMonth);
-      currentReadingDate.setMonth(currentReadingDate.getMonth() - 1);
-      const currentReadingYear = currentReadingDate.getFullYear();
-      const currentReadingMonth = currentReadingDate.getMonth() + 1; // 1-indexed for API
-
-      const readingsPromises = unitsData.map(async unit => {
-        const prevReading = await fetchSpecificReading(unit.id, previousReadingYear, previousReadingMonth, token);
-        const currReading = await fetchSpecificReading(unit.id, currentReadingYear, currentReadingMonth, token);
-        return { prevReading, currReading };
-      });
-      const allReadingsData = await Promise.all(readingsPromises);
-
-      setGasReadings(unitsData.map((unit, index) => ({
-        residentUnitId: unit.id,
-        unit: unit.unit,
-        previousReading: allReadingsData[index].prevReading,
-        currentReading: allReadingsData[index].currReading.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }),
-      })));
-
+      await fetchInitialData();
       setSuccess('Consumo de gás salvo com sucesso!');
       setTimeout(() => setSuccess(null), 3000);
 
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Ocorreu un error desconocido.';
-      console.error("Erro ao salvar consumo de gás:", message);
+      const message = err instanceof Error ? err.message : 'Ocorreu um erro desconhecido.';
       setPageError(message);
     }
   };
 
-  // --- RENDER ---
   return (
     <>
-      <FullScreenLoader isOpen={loading && !isConfirmationModalOpen} />
+      <FullScreenLoader isOpen={loading} />
       <PageMeta title="Boletos | Matisse" description="Página para geração e gestão de boletos" />
       <PageBreadcrumb pageTitle="Boletos" />
 
-      {pageError && (
+      {pageError && !isDefineGasPriceModalOpen && (
         <div className="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-gray-800 dark:text-red-400" role="alert">
           <span className="font-medium">Erro!</span> {pageError}
         </div>
@@ -380,8 +326,7 @@ const Slips: React.FC = () => {
         </div>
       )}
 
-
-      {!loading && (
+      {!loading && !pageError && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <GenerateSlipsCard
@@ -389,8 +334,6 @@ const Slips: React.FC = () => {
               onMonthChange={handleMonthChange}
               onGenerate={handleGenerateSlips}
               loading={isGenerating}
-              error={error}
-              success={success}
               className="lg:col-span-3 h-full"
               isGenerationDisabled={isGenerationDisabled || !!pageError}
             />
@@ -402,6 +345,7 @@ const Slips: React.FC = () => {
                 setReserveFund={setReserveFund}
                 gasUnitPrice={gasUnitPrice}
                 setGasUnitPrice={setGasUnitPrice}
+                className="h-full" // Added h-full
               />
             </div>
             <GasConsumptionCard
@@ -422,6 +366,13 @@ const Slips: React.FC = () => {
         </div>
       )}
 
+      <DefineGasPriceModal
+        isOpen={isDefineGasPriceModalOpen}
+        onClose={() => setIsDefineGasPriceModalOpen(false)}
+        onSave={handleSaveGasPrice}
+        isLoading={isSavingGasPrice}
+      />
+      
       <AddGasConsumptionModal
         isOpen={isGasModalOpen}
         onClose={handleCloseGasModal}
@@ -429,13 +380,10 @@ const Slips: React.FC = () => {
         gasUnitPrice={gasUnitPrice}
         onSave={handleSaveGasConsumption}
       />
-
+      
       <ConfirmationModal
         isOpen={isConfirmationModalOpen}
-        onClose={() => {
-          setIsConfirmationModalOpen(false);
-          setLoading(false);
-        }}
+        onClose={() => setIsConfirmationModalOpen(false)}
         onConfirm={() => proceedWithGeneration(true)}
         title={confirmationModalContent.title}
         message={confirmationModalContent.message}

@@ -1,6 +1,6 @@
 import React from 'react';
 import ComponentCard from '../common/ComponentCard';
-import { PencilIcon } from '../../icons'; // Corrected icon import
+import { PencilIcon } from '../../icons';
 
 interface ResidentUnit {
   id: string;
@@ -30,25 +30,16 @@ const GasConsumptionCard: React.FC<GasConsumptionCardProps> = ({
   className = "",
 }) => {
 
-  const parseReadingInput = (value: string): number => {
+  // This function now correctly handles pt-BR formatted numbers with thousand separators.
+  const parsePtBrNumber = (value: string): number => {
     if (!value) return 0;
-    const sanitized = value.replace(',', '.');
-    if (sanitized.includes('.')) {
-      return parseFloat(sanitized) || 0;
-    }
-    if (/^\d+$/.test(sanitized)) {
-      return (parseInt(sanitized, 10) || 0) / 1000;
-    }
-    return 0;
-  };
-
-  const parsePtBrPrice = (value: string): number => {
-    if (!value) return 0;
-    const sanitized = value.replace(/\./g, '').replace(',', '.');
+    const sanitized = value
+      .replace(/\./g, '')  // Remove thousand separators: "1.276,267" -> "1276,267"
+      .replace(',', '.'); // Replace decimal comma with dot: "1276.267"
     return parseFloat(sanitized) || 0;
   };
 
-  const unitPrice = parsePtBrPrice(gasUnitPrice);
+  const unitPrice = parsePtBrNumber(gasUnitPrice);
 
   const formatReading = (value: number | null) => {
     if (value === null || isNaN(value)) {
@@ -78,7 +69,7 @@ const GasConsumptionCard: React.FC<GasConsumptionCardProps> = ({
             {/* Body */}
             <ul className="flex flex-col divide-y divide-gray-200 dark:divide-gray-800">
               {gasReadings.map((reading) => {
-                const currentReadingNum = parseReadingInput(reading.currentReading);
+                const currentReadingNum = parsePtBrNumber(reading.currentReading);
                 const prevReadingNum = reading.previousReading;
 
                 const totalConsumption = prevReadingNum !== null && currentReadingNum > prevReadingNum

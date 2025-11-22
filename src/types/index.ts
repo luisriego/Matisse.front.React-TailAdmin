@@ -79,7 +79,7 @@ export interface Account {
 export interface GasReading {
   residentUnitId: string;
   unit: string;
-  previousReading: number;
+  previousReading: number | null; // Corrected type
   currentReading: string;
 }
 
