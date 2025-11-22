@@ -1,5 +1,6 @@
 import React from 'react';
 import ComponentCard from '../common/ComponentCard';
+import { PencilIcon } from '../../icons'; // Corrected icon import
 
 interface ResidentUnit {
   id: string;
@@ -9,7 +10,7 @@ interface ResidentUnit {
 interface GasReading {
   residentUnitId: string;
   unit: string;
-  previousReading: number;
+  previousReading: number | null;
   currentReading: string;
 }
 
@@ -49,6 +50,13 @@ const GasConsumptionCard: React.FC<GasConsumptionCardProps> = ({
 
   const unitPrice = parsePtBrPrice(gasUnitPrice);
 
+  const formatReading = (value: number | null) => {
+    if (value === null || isNaN(value)) {
+      return 'N/A';
+    }
+    return value.toLocaleString('pt-BR', { minimumFractionDigits: 3 });
+  };
+
   return (
     <ComponentCard title="Consumo de gás por unidade" className={className}>
       {residentUnits.length === 0 ? (
@@ -64,29 +72,36 @@ const GasConsumptionCard: React.FC<GasConsumptionCardProps> = ({
               <div className="col-span-2 text-right">Anterior</div>
               <div className="col-span-2 text-right">Atual</div>
               <div className="col-span-2 text-right">Consumo</div>
-              <div className="col-span-3 text-right">Valor</div>
+              <div className="col-span-2 text-right">Valor</div>
+              <div className="col-span-1 text-center">Ações</div>
             </div>
             {/* Body */}
             <ul className="flex flex-col divide-y divide-gray-200 dark:divide-gray-800">
               {gasReadings.map((reading) => {
                 const currentReadingNum = parseReadingInput(reading.currentReading);
-                const totalConsumption = currentReadingNum > reading.previousReading
-                  ? currentReadingNum - reading.previousReading
+                const prevReadingNum = reading.previousReading;
+
+                const totalConsumption = prevReadingNum !== null && currentReadingNum > prevReadingNum
+                  ? currentReadingNum - prevReadingNum
                   : 0;
                 const totalValue = totalConsumption * unitPrice;
 
                 return (
                   <li
                     key={reading.residentUnitId}
-                    onClick={() => onOpenGasModal(reading)}
-                    className="grid grid-cols-12 gap-4 items-center px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer"
+                    className="grid grid-cols-12 gap-4 items-center px-4 py-2.5 text-sm"
                   >
                     <div className="col-span-3 font-medium text-gray-800 dark:text-gray-200">{`Apto. ${reading.unit}`}</div>
-                    <div className="col-span-2 text-right text-gray-500 dark:text-gray-400">{reading.previousReading.toLocaleString('pt-BR', { minimumFractionDigits: 3 })}</div>
-                    <div className="col-span-2 text-right font-medium text-gray-800 dark:text-gray-200">{currentReadingNum.toLocaleString('pt-BR', { minimumFractionDigits: 3 })}</div>
-                    <div className="col-span-2 text-right font-semibold text-blue-600">{totalConsumption.toLocaleString('pt-BR', { minimumFractionDigits: 3 })} m³</div>
-                    <div className="col-span-3 text-right font-bold text-green-600">
-                      {unitPrice > 0 ? totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}
+                    <div className="col-span-2 text-right text-gray-500 dark:text-gray-400">{formatReading(prevReadingNum)}</div>
+                    <div className="col-span-2 text-right font-medium text-gray-800 dark:text-gray-200">{reading.currentReading ? formatReading(currentReadingNum) : 'N/A'}</div>
+                    <div className="col-span-2 text-right font-semibold text-blue-600">{totalConsumption > 0 ? `${formatReading(totalConsumption)} m³` : 'N/A'}</div>
+                    <div className="col-span-2 text-right font-bold text-green-600">
+                      {unitPrice > 0 && totalConsumption > 0 ? totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}
+                    </div>
+                    <div className="col-span-1 flex justify-center">
+                      <button onClick={() => onOpenGasModal(reading)} className="p-1 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-500">
+                        <PencilIcon className="w-5 h-5" />
+                      </button>
                     </div>
                   </li>
                 );
