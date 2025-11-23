@@ -22,9 +22,10 @@ export interface User {
   phoneNumber: string | null;
   roles: string[];
   isActive: boolean;
-  createdAt: { date: string; timezone_type: number; timezone: string };
-  updatedAt: { date: string; timezone_type: number; timezone: string };
+  createdAt: string;
+  updatedAt: string;
   residentUnit: ResidentUnit | null;
+  avatar?: string;
 }
 
 export interface DecodedToken {

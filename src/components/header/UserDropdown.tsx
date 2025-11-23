@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { useNavigate } from "react-router-dom";
 import { jwtDecode } from 'jwt-decode';
+import { User } from "../../types/user";
+import Avatar from "../ui/avatar/Avatar";
 
 interface DecodedToken {
   iat: number;
@@ -16,29 +18,43 @@ interface DecodedToken {
 
 export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
-  const [userName, setUserName] = useState('Usuário');
-  const [userEmail, setUserEmail] = useState('usuario@exemplo.com');
-  const [userGender, setUserGender] = useState<string | null>(null);
+  const [user, setUser] = useState<Partial<User> | null>(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
+  const loadUser = useCallback(() => {
+    let finalUser: Partial<User> = {};
+
+    const storedUserJSON = sessionStorage.getItem('user');
+    if (storedUserJSON) {
+        try {
+            finalUser = JSON.parse(storedUserJSON);
+        } catch (e) {
+            console.error("Failed to parse user from sessionStorage", e);
+        }
+    }
+
     const token = localStorage.getItem('token');
     if (token) {
       try {
         const decodedToken = jwtDecode<DecodedToken>(token);
-        setUserName(decodedToken.name);
-        setUserEmail(decodedToken.username); // Corrected from decodedToken.user
+        finalUser.name = decodedToken.name;
+        finalUser.email = decodedToken.username;
       } catch (error) {
         console.error('Erro ao decodificar token:', error);
       }
     }
-
-    const storedUser = sessionStorage.getItem('user');
-    if (storedUser) {
-      const user = JSON.parse(storedUser);
-      setUserGender(user.gender);
-    }
+    
+    setUser(finalUser);
   }, []);
+
+  useEffect(() => {
+    loadUser();
+    window.addEventListener('storageUpdated', loadUser);
+
+    return () => {
+      window.removeEventListener('storageUpdated', loadUser);
+    };
+  }, [loadUser]);
 
   function toggleDropdown() {
     setIsOpen(!isOpen);
@@ -50,6 +66,8 @@ export default function UserDropdown() {
 
   const handleLogout = () => {
     localStorage.removeItem('token');
+    sessionStorage.removeItem('user');
+    sessionStorage.removeItem('unit');
     navigate('/signin');
   };
 
@@ -60,16 +78,10 @@ export default function UserDropdown() {
         className="flex items-center text-gray-700 dropdown-toggle dark:text-gray-400"
       >
         <span className="mr-3 overflow-hidden rounded-full h-11 w-11">
-          {userGender === 'M' ? (
-            <img src="/images/user/woman.jpg" alt="User" />
-          ) : userGender === 'H' ? (
-            <img src="/images/user/man.png" alt="User" />
-          ) : (
-            <img src="/images/user/woman.jpg" alt="User" />
-          )}
+          <Avatar user={user} size="large" />
         </span>
 
-        <span className="block mr-1 font-medium text-theme-sm">{userName}</span>
+        <span className="block mr-1 font-medium text-theme-sm">{user?.name || 'Usuário'}</span>
         <svg
           className={`stroke-gray-500 dark:stroke-gray-400 transition-transform duration-200 ${
             isOpen ? "rotate-180" : ""
@@ -96,9 +108,8 @@ export default function UserDropdown() {
         className="absolute right-0 mt-[17px] flex w-[260px] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark"
       >
         <div>
-          {/* Removed the duplicate user name */}
           <span className="mt-0.5 block text-theme-xs text-gray-500 dark:text-gray-400">
-            {userEmail}
+            {user?.email}
           </span>
         </div>
 

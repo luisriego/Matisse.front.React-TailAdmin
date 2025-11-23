@@ -10,21 +10,31 @@ interface EditUserModalProps {
 }
 
 const EditUserModal: React.FC<EditUserModalProps> = ({ isOpen, onClose, user, onUserUpdate }) => {
-  const [formData, setFormData] = useState<User | null>(user);
+  const [formData, setFormData] = useState({
+    name: '',
+    lastName: '',
+    gender: '',
+    phoneNumber: '',
+  });
 
   useEffect(() => {
-    setFormData(user);
+    if (user) {
+      setFormData({
+        name: user.name || '',
+        lastName: user.lastName || '',
+        gender: user.gender || '',
+        phoneNumber: user.phoneNumber || '',
+      });
+    }
   }, [user]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (formData) {
-      setFormData({ ...formData, [e.target.name]: e.target.value });
-    }
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData) return;
+    if (!user) return;
 
     const token = localStorage.getItem('token');
     if (!token) {
@@ -33,7 +43,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ isOpen, onClose, user, on
     }
 
     try {
-      const response = await fetch(`/api/v1/users/${formData.id}`, {
+      const response = await fetch(`/api/v1/users/${user.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -43,12 +53,6 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ isOpen, onClose, user, on
       });
 
       if (response.status === 204) {
-        // Update session storage
-        const { residentUnit, ...userData } = formData;
-        sessionStorage.setItem('user', JSON.stringify(userData));
-        if (residentUnit) {
-          sessionStorage.setItem('unit', JSON.stringify(residentUnit));
-        }
         onUserUpdate();
         onClose();
       } else {
@@ -60,7 +64,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ isOpen, onClose, user, on
     }
   };
 
-  if (!isOpen || !formData) {
+  if (!isOpen) {
     return null;
   }
 
@@ -72,7 +76,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ isOpen, onClose, user, on
           <p className="mb-6 text-sm text-gray-500 dark:text-gray-400 lg:mb-7">Atualize seus dados para manter seu perfil atualizado.</p>
         </div>
         <form className="flex flex-col" onSubmit={handleSubmit}>
-          <div className="custom-scrollbar h-[450px] overflow-y-auto px-2 pb-3">
+          <div className="custom-scrollbar overflow-y-auto px-2 pb-3">
             <div className="mt-7">
               <h5 className="mb-5 text-lg font-medium text-gray-800 dark:text-white/90 lg:mb-6">Informações Pessoais</h5>
               <div className="grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-2">
@@ -83,7 +87,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ isOpen, onClose, user, on
                       className=" h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3  dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30  bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-brand-500/20 dark:border-gray-700 dark:text-white/90  dark:focus:border-brand-800"
                       type="text"
                       name="name"
-                      value={formData.name || ''}
+                      value={formData.name}
                       onChange={handleChange}
                     />
                   </div>
@@ -95,7 +99,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ isOpen, onClose, user, on
                       className=" h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3  dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30  bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-brand-500/20 dark:border-gray-700 dark:text-white/90  dark:focus:border-brand-800"
                       type="text"
                       name="lastName"
-                      value={formData.lastName || ''}
+                      value={formData.lastName}
                       onChange={handleChange}
                     />
                   </div>
@@ -107,7 +111,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ isOpen, onClose, user, on
                       className=" h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3  dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30  bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-brand-500/20 dark:border-gray-700 dark:text-white/90  dark:focus:border-brand-800"
                       type="text"
                       name="phoneNumber"
-                      value={formData.phoneNumber || ''}
+                      value={formData.phoneNumber}
                       onChange={handleChange}
                     />
                   </div>
@@ -119,7 +123,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ isOpen, onClose, user, on
                       className=" h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3  dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30  bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-brand-500/20 dark:border-gray-700 dark:text-white/90  dark:focus:border-brand-800"
                       type="text"
                       name="gender"
-                      value={formData.gender || ''}
+                      value={formData.gender}
                       onChange={handleChange}
                     />
                   </div>

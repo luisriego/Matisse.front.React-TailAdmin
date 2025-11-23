@@ -18,7 +18,7 @@ The API is organized into the following Bounded Contexts, each representing a sp
 - [Expense](#expense)
 - [Income](#income)
 - [Gas](#gas)
-- [ResidentUnit](#resident-unit)
+- [Resident Unit](#resident-unit)
 - [Slip](#slip)
 - [User](#user)
 
@@ -224,18 +224,18 @@ Retrieves a list of all expenses. The `type` field now returns a complete Expens
     "createdAt": "2025-10-15 22:32:02",
     "residentUnitId": null,
     "type": {
-      "id": "f2266caa-0edf-4403-a1dd-d81e9a05c430",
-      "code": "MR1GE",
-      "name": "MANUTENCAO_GERAL",
-      "distributionMethod": "EQUAL",
-      "description": "Pequenos reparos (hidráulica, elétrica em áreas comuns, chaveiro, etc.)."
+        "id": "f2266caa-0edf-4403-a1dd-d81e9a05c430",
+        "code": "MR1GE",
+        "name": "MANUTENCAO_GERAL",
+        "distributionMethod": "EQUAL",
+        "description": "Pequenos reparos (hidráulica, elétrica em áreas comuns, chaveiro, etc.)."
     },
     "account": {
-      "id": "6509f512-11f6-4f39-8457-e5e2ad9e221f",
-      "code": "TRE23UY",
-      "name": "Conta Principal",
-      "description": "Esta é a conta principal do condominio, utilizada para gastos correntes.",
-      "isActive": true
+        "id": "6509f512-11f6-4f39-8457-e5e2ad9e221f",
+        "code": "TRE23UY",
+        "name": "Conta Principal",
+        "description": "Esta é a conta principal do condominio, utilizada para gastos correntes.",
+        "isActive": true
     },
     "recurringExpense": "c9e67e09-84ca-4c73-8f3d-6377d6d852db"
   }
@@ -452,9 +452,20 @@ Retrieves a list of all expense types.
 
 ```json
 [
-  "services",
-  "maintenance",
-  "supplies"
+  {
+    "id": "f2266caa-0edf-4403-a1dd-d81e9a05c430",
+    "code": "MR1GE",
+    "name": "MANUTENCAO_GERAL",
+    "distributionMethod": "EQUAL",
+    "description": "Pequenos reparos (hidráulica, elétrica em áreas comuns, chaveiro, etc.)."
+  },
+  {
+    "id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+    "code": "SERV",
+    "name": "Services",
+    "distributionMethod": "EQUAL",
+    "description": "General services."
+  }
 ]
 ```
 
@@ -747,9 +758,9 @@ Retrieves the current gas price per m³.
 
 ```json
 {
-  "class": "App\\Context\\Gas\\Domain\\Exception\\GasPriceNotFoundException",
-  "code": 404,
-  "message": "O preço do gás ainda não foi definido."
+    "class": "App\\Context\\Gas\\Domain\\Exception\\GasPriceNotFoundException",
+    "code": 404,
+    "message": "O preço do gás ainda não foi definido."
 }
 ```
 
@@ -906,55 +917,6 @@ Retrieves a list of active resident units.
     "createdAt": "2025-06-21 00:59:01",
     "updatedAt": null,
     "notificationRecipients": []
-  },
-  {
-    "id": "674424a7-6009-42c0-a2da-6cc21a542bbe",
-    "unit": "AP-301",
-    "idealFraction": 0.19816931,
-    "isActive": true,
-    "createdAt": "2025-06-21 00:59:01",
-    "updatedAt": null,
-    "notificationRecipients": []
-  },
-  {
-    "id": "674424a7-6009-42c0-a2da-6cc21a542bbf",
-    "unit": "AP-401",
-    "idealFraction": 0.18131761,
-    "isActive": true,
-    "createdAt": "2025-06-21 00:59:01",
-    "updatedAt": "2025-09-24 20:02:39",
-    "notificationRecipients": [
-      {
-        "name": "Andréa",
-        "email": "andrea.trt@email.com.br"
-      },
-      {
-        "name": "Andrea",
-        "email": "outro@email.com"
-      },
-      {
-        "name": "Andrea",
-        "email": "ultimo@email.com"
-      }
-    ]
-  },
-  {
-    "id": "4e4d638a-9d62-45f2-a114-b668f3928e17",
-    "unit": "AP-501",
-    "idealFraction": 0.18131761,
-    "isActive": true,
-    "createdAt": "2025-06-21 00:59:01",
-    "updatedAt": null,
-    "notificationRecipients": [
-      {
-        "name": "Inmobiliaria XYZ",
-        "email": "admin@inmobiliaria.com"
-      },
-      {
-        "name": "Orlando",
-        "email": "orlando@email.com"
-      }
-    ]
   }
 ]
 ```
@@ -972,6 +934,60 @@ Retrieves a single resident unit by its ID.
 -   `200 OK`: The request was successful.
 -   `404 Not Found`: The specified resident unit does not exist.
 
+### `PATCH /api/v1/resident-unit/{id}/recipients`
+
+Appends a recipient to a resident unit.
+
+**Parameters:**
+
+-   `id` (string, required): The unique identifier of the resident unit.
+
+**Request Body:**
+
+```json
+{
+  "name": "Jane Doe",
+  "email": "jane.doe@example.com"
+}
+```
+
+**Parameters:**
+
+-   `name` (string, required): The name of the recipient.
+-   `email` (string, required): The email address of the recipient.
+
+**Responses:**
+
+-   `200 OK`: The recipient was appended successfully.
+-   `404 Not Found`: The specified resident unit does not exist.
+
+**Example Response:**
+
+```json
+{
+  "id": "674424a7-6009-42c0-a2da-6cc21a542bbc",
+  "unit": "AP-101",
+  "idealFraction": 0.25787791,
+  "isActive": true,
+  "createdAt": "2025-06-21 00:59:01",
+  "updatedAt": "2025-09-06 13:06:41",
+  "notificationRecipients": [
+    {
+      "name": "Anna",
+      "email": "anna@anna.com"
+    },
+    {
+      "name": "Carol",
+      "email": "carol@ufop.com.br"
+    },
+    {
+      "name": "Jane Doe",
+      "email": "jane.doe@example.com"
+    }
+  ]
+}
+```
+
 ---
 
 ## Slip
@@ -986,22 +1002,8 @@ Generates slips for a specific month.
 
 ```json
 {
-  "id": "4e4d638a-9d62-45f2-a114-b668f3928e17",
-  "unit": "AP-501",
-  "idealFraction": 0.18131761,
-  "isActive": true,
-  "createdAt": "2025-06-21 00:59:01",
-  "updatedAt": null,
-  "notificationRecipients": [
-    {
-      "name": "Inmobiliaria XYZ",
-      "email": "admin@inmobiliaria.com"
-    },
-    {
-      "name": "Orlando",
-      "email": "orlando@email.com"
-    }
-  ]
+  "targetMonth": "2025-10",
+  "force": false
 }
 ```
 
@@ -1131,7 +1133,6 @@ Activates a user account. This endpoint is typically used by clicking a link in 
 **Responses:**
 
 -   `200 OK`: The user account was activated successfully.
-
 -   `400 Bad Request`: The activation token is invalid or has expired.
 -   `404 Not Found`: The specified user does not exist.
 
@@ -1363,6 +1364,75 @@ Unlinks a resident unit from a user.
 -   `204 No Content`: The resident unit was unlinked successfully.
 -   `404 Not Found`: The specified user does not exist.
 
+### `POST /api/v1/users/{id}/avatar`
+
+Uploads an avatar for a user.
+
+**Parameters:**
+
+-   `id` (string, required): The unique identifier of the user.
+
+**Request Body:**
+
+The request body should contain the image file to upload. This is a `multipart/form-data` request.
+
+-   `avatar` (file, required): The avatar image file.
+
+**Responses:**
+
+-   `200 OK`: The avatar was uploaded successfully.
+-   `400 Bad Request`: The request was malformed or validation failed.
+-   `404 Not Found`: The specified user does not exist.
+-   `500 Internal Server Error`: Could not save the uploaded file.
+
+**Example Response (Success):**
+
+```json
+{
+  "avatarUrl": "/uploads/avatars/safe_filename_1678886400.jpg"
+}
+```
+
+**Example Response (Error):**
+
+```json
+{
+    "class": "Symfony\\Component\\HttpFoundation\\File\\Exception\\FileException",
+    "code": 500,
+    "message": "Unable to write in the \"/var/www/html/public/uploads/avatars\" directory."
+}
+```
+### `POST /api/v1/users/{id}/avatar`
+
+Uploads an avatar for a user.
+
+**Parameters:**
+
+-   `id` (string, required): The unique identifier of the user.
+
+**Request Body:**
+
+The request body should contain the image file to upload. This is a `multipart/form-data` request.
+
+-   `avatar` (file, required): The avatar image file.
+
+**Responses:**
+
+-   `200 OK`: The avatar was uploaded successfully.
+-   `400 Bad Request`: The request was malformed or validation failed.
+-   `404 Not Found`: The specified user does not exist.
+-   `500 Internal Server Error`: Could not save the uploaded file.
+
+**Example Error Response (500):**
+
+```json
+{
+    "class": "Symfony\\Component\\HttpFoundation\\File\\Exception\\FileException",
+    "code": 500,
+    "message": "Unable to write in the \"/var/www/html/public/uploads/avatars\" directory."
+}
+```
+
 **Example Response:**
 
 ```json
@@ -1375,47 +1445,5 @@ Unlinks a resident unit from a user.
       "email": "john.doe@example.com"
     }
   ]
-}
-```
-
-### `PATCH /api/v1/resident-unit/{id}/recipients`
-
-Appends a recipient to a resident unit.
-
-**Parameters:**
-
--   `id` (string, required): The unique identifier of the resident unit.
-
-**Request Body:**
-
-```json
-{
-  "name": "Jane Doe",
-  "email": "jane.doe@example.com"
-}
-```
-
-**Parameters:**
-
--   `name` (string, required): The name of the recipient.
--   `email` (string, required): The email address of the recipient.
-
-**Responses:**
-
--   `200 OK`: The recipient was appended successfully.
--   `404 Not Found`: The specified resident unit does not exist.
-
-
-**Example Response:**
-
-```json
-{
-  "id": "a7b7b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3b",
-  "code": "1.01.01",
-  "name": "Cash",
-  "balance": 1500.75,
-  "isActive": true,
-  "createdAt": "2023-10-27T10:00:00+00:00",
-  "updatedAt": "2023-10-27T10:00:00+00:00"
 }
 ```
