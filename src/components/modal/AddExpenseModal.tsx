@@ -241,7 +241,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                       id="expense-date"
                       label="Data da Despesa"
                       onChange={handleDateChange}
-                      defaultDate={expenseDate || new Date()}
+                      defaultDate={expenseDate || undefined}
                       placeholder="Selecione a data"
                     />
                   </div>

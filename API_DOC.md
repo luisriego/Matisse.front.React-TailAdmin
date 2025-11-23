@@ -739,7 +739,7 @@ Retrieves the current gas price per m³.
 
 ```json
 {
-  "price_per_m3_in_cents": 587
+    "price_per_m3_in_cents": 587
 }
 ```
 

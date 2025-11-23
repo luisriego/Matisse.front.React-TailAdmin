@@ -147,7 +147,7 @@ const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
                     id="income-due-date"
                     label="Data de Vencimento"
                     onChange={handleDateChange}
-                    defaultDate={dueDate || new Date()}
+                    defaultDate={dueDate || undefined}
                     placeholder="Selecione a data"
                   />
                 </div>

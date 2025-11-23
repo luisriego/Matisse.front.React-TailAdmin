@@ -19,7 +19,6 @@ const SetInitialBalanceModal: React.FC<SetInitialBalanceModalProps> = ({ isOpen,
   useEffect(() => {
     if (isOpen) {
       setAmount(0);
-      // Asegurarse de que la fecha por defecto esté en el formato YYYY-MM-DD
       setDate(new Date().toISOString().split('T')[0]);
       setError(null);
     }

@@ -85,7 +85,7 @@ const AddGasConsumptionModal: React.FC<AddGasConsumptionModalProps> = ({ isOpen,
             id="initial-reading-date"
             label="Data da Leitura Inicial"
             onChange={handleDateChange}
-            defaultDate={initialReadingDate}
+            defaultDate={initialReadingDate || undefined}
             placeholder="Selecione a data"
           />
         )}
