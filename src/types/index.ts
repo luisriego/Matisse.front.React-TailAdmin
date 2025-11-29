@@ -70,10 +70,14 @@ export interface Account {
   id: string;
   code: string;
   name: string;
-  balance: number;
+  balance?: number; // Made optional
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AccountBalanceResponse {
+  balance: number;
 }
 
 export interface GasReading {
