@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import ComponentCard from "../components/common/ComponentCard";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import PageMeta from "../components/common/PageMeta";
@@ -7,109 +8,81 @@ import { Account } from "../types/accountApi";
 import Switch from "../components/ui/Switch";
 import EditAccountModal from "../components/modal/EditAccountModal";
 import SetInitialBalanceModal from "../components/modal/SetInitialBalanceModal";
-import AddAccountModal from "../components/modal/AddAccountModal"; // Import the new modal
+import AddAccountModal from "../components/modal/AddAccountModal";
 import { PencilIcon, TrashBinIcon, DollarLineIcon } from "../icons";
 
+// 1. La lógica de obtención de datos se mueve fuera del componente para mayor claridad.
+const fetchAccountsWithBalances = async (): Promise<Account[]> => {
+  const token = localStorage.getItem("token");
+  if (!token) throw new Error("Authentication token not found.");
+  const headers = { Authorization: `Bearer ${token}` };
+
+  const response = await fetch(`/api/v1/accounts`, { headers });
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+  
+  const data = await response.json();
+  const initialAccounts: Account[] = data.accounts;
+
+  const balancePromises = initialAccounts.map(account =>
+    fetch(`/api/v1/accounts/${account.id}/balance`, { headers })
+      .then(res => res.ok ? res.json() : null)
+  );
+
+  const balanceResults = await Promise.all(balancePromises);
+
+  return initialAccounts.map(account => {
+    const balanceData = balanceResults.find(b => b && b.account_id === account.id);
+    return balanceData ? { ...account, balance: balanceData.balance } : account;
+  });
+};
+
+// La lógica de la mutación también se extrae.
+const toggleAccountStatus = async ({ accountId, isActive }: { accountId: string, isActive: boolean }) => {
+  const token = localStorage.getItem("token");
+  if (!token) throw new Error("Authentication token not found.");
+  
+  const endpoint = isActive
+    ? `/api/v1/accounts/enable/${accountId}`
+    : `/api/v1/accounts/disable/${accountId}`;
+
+  const response = await fetch(endpoint, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to update account status. Status: ${response.status}`);
+  }
+};
+
 export default function Accounts() {
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [loadingBalances, setLoadingBalances] = useState<boolean>(false);
-  const [updatingAccountId, setUpdatingAccountId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  // 2. Se reemplaza useEffect y múltiples useState por un único useQuery.
+  const { data: accounts = [], isLoading, isError, error } = useQuery<Account[], Error>({
+    queryKey: ['accountsWithBalances'], // Clave compartida con el Dashboard para cacheo.
+    queryFn: fetchAccountsWithBalances,
+  });
+
+  // 3. Se reemplaza la lógica manual de fetch y actualización de estado por useMutation.
+  const { mutate: toggleAccount, isPending: isUpdatingAccount } = useMutation({
+    mutationFn: toggleAccountStatus,
+    onSuccess: () => {
+      // 4. Se invalida la query para que TanStack Query refresque los datos automáticamente.
+      queryClient.invalidateQueries({ queryKey: ['accountsWithBalances'] });
+    },
+    // Opcional: se puede añadir onError para un manejo de errores más específico.
+  });
+
+  // Los estados para los modales se mantienen igual.
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [isSetInitialBalanceModalOpen, setIsSetInitialBalanceModalOpen] = useState(false);
   const [accountToSetInitialBalance, setAccountToSetInitialBalance] = useState<Account | null>(null);
-  const [isAddAccountModalOpen, setIsAddAccountModalOpen] = useState(false); // State for the new modal
+  const [isAddAccountModalOpen, setIsAddAccountModalOpen] = useState(false);
 
-  const fetchAccounts = async () => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        throw new Error("Authentication token not found.");
-      }
-
-      const response = await fetch(`/api/v1/accounts`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const initialAccounts: Account[] = data.accounts;
-      setAccounts(initialAccounts);
-
-      // Ahora, obtenemos los saldos para cada cuenta
-      setLoadingBalances(true);
-      const balancePromises = initialAccounts.map(account =>
-        fetch(`/api/v1/accounts/${account.id}/balance`, {
-          headers: { Authorization: `Bearer ${token}` }
-        }).then(res => res.ok ? res.json() : null)
-      );
-
-      const balanceResults = await Promise.all(balancePromises);
-
-      const updatedAccounts = initialAccounts.map(account => {
-        const balanceData = balanceResults.find(b => b && b.account_id === account.id);
-        return balanceData ? { ...account, balance: balanceData.balance } : account;
-      });
-      setAccounts(updatedAccounts);
-
-      setLoadingBalances(false);
-
-    } catch (error: any) {
-      setError(error.message);
-      console.error("Failed to fetch accounts:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchAccounts();
-  }, []);
-
-  const handleToggleAccount = async (accountId: string, isActive: boolean) => {
-    setUpdatingAccountId(accountId);
-    const endpoint = isActive
-      ? `/api/v1/accounts/enable/${accountId}`
-      : `/api/v1/accounts/disable/${accountId}`;
-
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        throw new Error("Authentication token not found.");
-      }
-
-      const response = await fetch(endpoint, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to update account status. Status: ${response.status}`);
-      }
-
-      setAccounts(currentAccounts =>
-        currentAccounts.map(acc =>
-          acc.id === accountId ? { ...acc, isActive } : acc
-        )
-      );
-
-    } catch (error: any) {
-      setError("Failed to update account status. Please try again.");
-      console.error("Failed to toggle account:", error);
-      fetchAccounts();
-    } finally {
-      setUpdatingAccountId(null);
-    }
+  const handleToggleAccount = (accountId: string, isActive: boolean) => {
+    toggleAccount({ accountId, isActive });
   };
 
   const handleOpenEditModal = (account: Account) => {
@@ -125,6 +98,14 @@ export default function Accounts() {
   const handleOpenAddAccountModal = () => {
     setIsAddAccountModalOpen(true);
   };
+  
+  // 5. Función centralizada para que los modales notifiquen que una mutación tuvo éxito.
+  const handleMutationSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ['accountsWithBalances'] });
+    setIsEditModalOpen(false);
+    setIsAddAccountModalOpen(false);
+    setIsSetInitialBalanceModalOpen(false);
+  }
 
   const columns: ColumnDef<Account>[] = [
     {
@@ -183,7 +164,7 @@ export default function Accounts() {
         <Switch
           checked={account.isActive}
           onChange={(newIsActive) => handleToggleAccount(account.id, newIsActive)}
-          disabled={updatingAccountId === account.id}
+          disabled={isUpdatingAccount} // Se usa el estado de la mutación.
           label={account.isActive ? 'Ativa' : 'Inativa'}
         />
       ),
@@ -215,12 +196,12 @@ export default function Accounts() {
   ];
 
   const renderContent = () => {
-    if (loading || loadingBalances) {
+    if (isLoading) { // Se usa el estado de useQuery.
       return <p>Carregando...</p>;
     }
 
-    if (error) {
-      return <p>Erro ao carregar dados: {error}</p>;
+    if (isError) { // Se usa el estado de useQuery.
+      return <p>Erro ao carregar dados: {error.message}</p>;
     }
 
     return <DataTable columns={columns} data={accounts} />;
@@ -252,24 +233,18 @@ export default function Accounts() {
           isOpen={isEditModalOpen}
           onClose={() => setIsEditModalOpen(false)}
           account={selectedAccount}
-          onAccountUpdate={fetchAccounts}
+          onAccountUpdate={handleMutationSuccess} // Se usa la nueva función.
         />
         <SetInitialBalanceModal
           isOpen={isSetInitialBalanceModalOpen}
           onClose={() => setIsSetInitialBalanceModalOpen(false)}
           account={accountToSetInitialBalance}
-          onInitialBalanceSet={() => {
-            fetchAccounts();
-            setIsSetInitialBalanceModalOpen(false);
-          }}
+          onInitialBalanceSet={handleMutationSuccess} // Se usa la nueva función.
         />
         <AddAccountModal
           isOpen={isAddAccountModalOpen}
           onClose={() => setIsAddAccountModalOpen(false)}
-          onAccountAdded={() => {
-            fetchAccounts();
-            setIsAddAccountModalOpen(false);
-          }}
+          onAccountAdded={handleMutationSuccess} // Se usa la nueva función.
         />
       </div>
     </>

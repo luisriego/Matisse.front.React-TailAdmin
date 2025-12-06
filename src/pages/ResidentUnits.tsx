@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import PageMeta from '../components/common/PageMeta';
 import PageBreadcrumb from '../components/common/PageBreadCrumb';
 import ComponentCard from '../components/common/ComponentCard';
@@ -8,51 +9,30 @@ import EditResidentUnitModal from "../components/modal/EditResidentUnitModal";
 import CreateResidentUnitModal from "../components/modal/CreateResidentUnitModal";
 import { ResidentUnit } from "../types/residentUnit";
 
+// --- Función de Fetching ---
+const fetchResidentUnits = async (): Promise<ResidentUnit[]> => {
+  const token = localStorage.getItem("token");
+  if (!token) throw new Error("Token de autenticação não encontrado.");
+  const headers = { Authorization: `Bearer ${token}` };
+  const response = await fetch(`/api/v1/resident-unit/actives`, { headers });
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+  return response.json();
+};
+
+// --- Componente ---
 const ResidentUnits: React.FC = () => {
-  const [residentUnits, setResidentUnits] = useState<ResidentUnit[]>([]);
-  const [loadingResidentUnits, setLoadingResidentUnits] = useState(true);
-  const [residentUnitsError, setResidentUnitsError] = useState<string | null>(null);
-  
+  const queryClient = useQueryClient();
+
+  // --- Query ---
+  const { data: residentUnits = [], isLoading: loadingResidentUnits, isError, error: residentUnitsError } = useQuery<ResidentUnit[], Error>({
+    queryKey: ['residentUnits'],
+    queryFn: fetchResidentUnits,
+  });
+
+  // --- Estados para los modales ---
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState<ResidentUnit | null>(null);
-
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-
-  const fetchResidentUnits = useCallback(async () => {
-    setLoadingResidentUnits(true);
-    setResidentUnitsError(null);
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        throw new Error("Token de autenticação não encontrado.");
-      }
-
-      const response = await fetch(`/api/v1/resident-unit/actives`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data: ResidentUnit[] = await response.json();
-      setResidentUnits(data);
-
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        setResidentUnitsError(`Falha ao carregar as unidades residenciais: ${err.message}`);
-      } else {
-        setResidentUnitsError('Ocorreu um erro desconhecido ao carregar as unidades residenciais.');
-      }
-      console.error("Failed to fetch resident units:", err);
-    } finally {
-      setLoadingResidentUnits(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchResidentUnits();
-  }, [fetchResidentUnits]);
 
   const handleOpenEditModal = (unit: ResidentUnit) => {
     setSelectedUnit(unit);
@@ -61,6 +41,12 @@ const ResidentUnits: React.FC = () => {
 
   const handleOpenCreateModal = () => {
     setIsCreateModalOpen(true);
+  };
+
+  const handleMutationSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ['residentUnits'] });
+    setIsEditModalOpen(false);
+    setIsCreateModalOpen(false);
   };
 
   const columns: ColumnDef<ResidentUnit>[] = [
@@ -131,8 +117,8 @@ const ResidentUnits: React.FC = () => {
           </div>
           {loadingResidentUnits ? (
             <p className="text-center">Carregando unidades residenciais...</p>
-          ) : residentUnitsError ? (
-            <p className="text-center text-error-500">{residentUnitsError}</p>
+          ) : isError ? (
+            <p className="text-center text-error-500">{(residentUnitsError as Error).message}</p>
           ) : residentUnits.length === 0 ? (
             <p className="text-center text-gray-500 dark:text-gray-400">Nenhuma unidade residencial registrada ainda.</p>
           ) : (
@@ -144,13 +130,13 @@ const ResidentUnits: React.FC = () => {
           isOpen={isEditModalOpen}
           onClose={() => setIsEditModalOpen(false)}
           unit={selectedUnit}
-          onUnitUpdate={fetchResidentUnits}
+          onUnitUpdate={handleMutationSuccess}
         />
 
         <CreateResidentUnitModal
           isOpen={isCreateModalOpen}
           onClose={() => setIsCreateModalOpen(false)}
-          onUnitCreate={fetchResidentUnits}
+          onUnitCreate={handleMutationSuccess}
           residentUnits={residentUnits}
         />
       </div>

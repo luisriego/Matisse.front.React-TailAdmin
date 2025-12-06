@@ -1,126 +1,71 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState } from "react";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import PageMeta from '../components/common/PageMeta';
 import PageBreadcrumb from '../components/common/PageBreadCrumb';
 import ComponentCard from '../components/common/ComponentCard';
 import DataTable, { ColumnDef } from '../components/tables/DataTable';
 import AddIncomeModal from '../components/modal/AddIncomeModal';
+import { Income, IncomeType, ResidentUnit, ApiIncome } from '../types';
 
-interface ResidentUnit {
-  id: string;
-  unit: string;
-}
+// --- Funciones de Fetching (fuera del componente) ---
 
-interface IncomeType {
-  id: string;
-  name: string;
-  code: string;
-  description: string;
-}
+const fetchResidentUnits = async (): Promise<ResidentUnit[]> => {
+  const token = localStorage.getItem("token");
+  if (!token) throw new Error("Token não encontrado.");
+  const headers = { Authorization: `Bearer ${token}` };
+  const response = await fetch('/api/v1/resident-unit/actives', { headers });
+  if (!response.ok) throw new Error('Falha ao carregar unidades residenciais.');
+  return response.json();
+};
 
-interface Income {
-  id: string;
-  description: string;
-  amount: number;
-  dueDate: string;
-  paidAt?: string | null;
-  createdAt?: string;
-  residentUnitId: string;
-  type: IncomeType;
-}
+const fetchIncomeTypes = async (): Promise<IncomeType[]> => {
+  const token = localStorage.getItem("token");
+  if (!token) throw new Error("Token não encontrado.");
+  const headers = { Authorization: `Bearer ${token}` };
+  const response = await fetch('/api/v1/income-types', { headers });
+  if (!response.ok) throw new Error('Falha ao carregar tipos de ingresso.');
+  return response.json();
+};
 
-interface ApiIncome {
-  id:string;
-  residentUnitId: string;
-  amount: number;
-  type: IncomeType;
-  dueDate: string;
-  description: string;
-}
+const fetchIncomes = async (): Promise<Income[]> => {
+  const token = localStorage.getItem("token");
+  if (!token) throw new Error("Token de autenticação não encontrado.");
+  const headers = { Authorization: `Bearer ${token}` };
+  const response = await fetch(`/api/v1/incomes`, { headers });
+  if (!response.ok) {
+    if (response.status === 404) return []; // Devuelve un array vacío si no se encuentra
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  const data: ApiIncome[] = await response.json();
+  return data.map(inc => ({ ...inc }));
+};
 
-interface ApiResidentUnit {
-  id: string;
-  unit: string;
-}
+// --- Componente ---
 
 const Incomes: React.FC = () => {
-  const [residentUnits, setResidentUnits] = useState<ResidentUnit[]>([]);
-  const [incomeTypes, setIncomeTypes] = useState<IncomeType[]>([]);
-  const [incomes, setIncomes] = useState<Income[]>([]);
-
-  const [loadingIncomes, setLoadingIncomes] = useState(true);
-  const [incomesError, setIncomesError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
-  useEffect(() => {
-    const fetchInitialData = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        if (!token) throw new Error("Token não encontrado.");
+  // --- Queries ---
+  const { data: residentUnits = [] } = useQuery<ResidentUnit[], Error>({
+    queryKey: ['residentUnits'],
+    queryFn: fetchResidentUnits,
+  });
 
-        const headers = { Authorization: `Bearer ${token}` };
+  const { data: incomeTypes = [] } = useQuery<IncomeType[], Error>({
+    queryKey: ['incomeTypes'],
+    queryFn: fetchIncomeTypes,
+  });
 
-        const [unitsResponse, incomeTypesResponse] = await Promise.all([
-          fetch('/api/v1/resident-unit/actives', { headers }),
-          fetch('/api/v1/income-types', { headers }),
-        ]);
+  const { data: incomes = [], isLoading: loadingIncomes, isError: isErrorIncomes, error: incomesError } = useQuery<Income[], Error>({
+    queryKey: ['incomes'],
+    queryFn: fetchIncomes,
+  });
 
-        if (!unitsResponse.ok) throw new Error('Falha ao carregar unidades residenciais.');
-        const unitsData: ApiResidentUnit[] = await unitsResponse.json();
-        setResidentUnits(unitsData);
-
-        if (!incomeTypesResponse.ok) throw new Error('Falha ao carregar tipos de ingresso.');
-        const incomeTypesData: IncomeType[] = await incomeTypesResponse.json();
-        setIncomeTypes(incomeTypesData);
-
-      } catch (err) {
-        console.error("Erro ao carregar dados iniciais:", err);
-      }
-    };
-    fetchInitialData();
-  }, []);
-
-  const fetchIncomes = useCallback(async () => {
-    setLoadingIncomes(true);
-    setIncomesError(null);
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        throw new Error("Token de autenticação não encontrado.");
-      }
-
-      const response = await fetch(`/api/v1/incomes`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        if (response.status === 404) {
-             setIncomes([]);
-             console.warn("Endpoint para buscar ingressos no encontrado (404). Mostrando lista vacía.");
-             return;
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data: ApiIncome[] = await response.json();
-
-      const formattedIncomes: Income[] = data.map(inc => ({
-        ...inc,
-      }));
-
-      setIncomes(formattedIncomes);
-    } catch (err: any) {
-      setIncomesError('Falha ao carregar os ingressos.');
-      console.error("Failed to fetch incomes:", err);
-    } finally {
-      setLoadingIncomes(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchIncomes();
-  }, [fetchIncomes]);
+  const handleMutationSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ['incomes'] });
+    setIsAddModalOpen(false);
+  }
 
   const columns: ColumnDef<Income>[] = [
     {
@@ -196,8 +141,8 @@ const Incomes: React.FC = () => {
         >
           {loadingIncomes ? (
             <p className="text-center">Carregando ingressos...</p>
-          ) : incomesError ? (
-            <p className="text-center text-error-500">{incomesError}</p>
+          ) : isErrorIncomes ? (
+            <p className="text-center text-error-500">{(incomesError as Error).message}</p>
           ) : incomes.length === 0 ? (
             <p className="text-center text-gray-500 dark:text-gray-400">Nenhum ingresso registrado ainda.</p>
           ) : (
@@ -208,7 +153,7 @@ const Incomes: React.FC = () => {
         <AddIncomeModal
           isOpen={isAddModalOpen}
           onClose={() => setIsAddModalOpen(false)}
-          onIncomeAdded={fetchIncomes}
+          onIncomeAdded={handleMutationSuccess}
           residentUnits={residentUnits}
           incomeTypes={incomeTypes}
         />
