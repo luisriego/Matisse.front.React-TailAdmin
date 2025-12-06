@@ -1,23 +1,50 @@
 import React from 'react';
-import { Account } from '../../types';
+import { useQuery } from '@tanstack/react-query';
+import { Account, AccountBalanceResponse } from '../../types';
 import { formatCurrency } from '../../utils/formatters';
 
-interface AccountBalancesProps {
-  accounts: Account[];
-  loading: boolean;
-}
+// 1. Función que busca los datos. Podría moverse a un archivo `api/accounts.ts` en el futuro.
+const fetchAccountsWithBalances = async (): Promise<Account[]> => {
+  const token = localStorage.getItem('token');
+  const headers = { 'Authorization': `Bearer ${token}` };
 
-const AccountBalances: React.FC<AccountBalancesProps> = ({ accounts, loading }) => {
-  const totalBalance = accounts.reduce((sum, account) => sum + (account.balance || 0), 0);
+  const accountsRes = await fetch('/api/v1/accounts', { headers });
+  if (!accountsRes.ok) throw new Error('Error al obtener las cuentas');
+  const accountsData = await accountsRes.json();
+  const fetchedAccounts: Account[] = accountsData.accounts;
+
+  const accountsWithBalancesPromises = fetchedAccounts.map(async (account) => {
+    const balanceRes = await fetch(`/api/v1/accounts/${account.id}/balance`, { headers });
+    if (!balanceRes.ok) {
+      console.warn(`Failed to fetch balance for account ${account.id}`);
+      return { ...account, balance: 0 };
+    }
+    const balanceData: AccountBalanceResponse = await balanceRes.json();
+    return { ...account, balance: balanceData.balance };
+  });
+
+  return Promise.all(accountsWithBalancesPromises);
+};
+
+const AccountBalances: React.FC = () => {
+  // 2. Usamos useQuery en lugar de props.
+  const { data: accounts, isLoading, isError, error } = useQuery<Account[], Error>({
+    queryKey: ['accountsWithBalances'], // Clave única para esta query
+    queryFn: fetchAccountsWithBalances,   // Función que obtiene los datos
+  });
+
+  const totalBalance = accounts?.reduce((sum, account) => sum + (account.balance || 0), 0) || 0;
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-boxdark">
       <h4 className="mb-4 text-lg font-semibold text-black dark:text-white">Saldos por Cuenta</h4>
-      {loading ? (
+      {isLoading ? (
         <p>Carregando...</p>
+      ) : isError ? (
+        <p className="text-red-500">Error: {error.message}</p>
       ) : (
         <div className="space-y-4">
-          {accounts.length > 0 ? (
+          {accounts && accounts.length > 0 ? (
             <>
               {accounts.map((account) => (
                 <div key={account.id} className="flex items-center justify-between">

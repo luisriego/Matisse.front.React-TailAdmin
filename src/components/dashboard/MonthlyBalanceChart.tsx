@@ -1,14 +1,11 @@
 import React from 'react';
 import ReactApexChart from 'react-apexcharts';
 import { ApexOptions } from 'apexcharts';
+import { useMonthlyMetrics } from '../../hooks/useMonthlyMetrics';
 
-interface MonthlyBalanceChartProps {
-  incomeData: number[];
-  expenseData: number[];
-  loading: boolean;
-}
+const MonthlyBalanceChart: React.FC = () => {
+  const { data: metrics, isLoading } = useMonthlyMetrics();
 
-const MonthlyBalanceChart: React.FC<MonthlyBalanceChartProps> = ({ incomeData, expenseData, loading }) => {
   const getMonthNames = () => {
     const monthNames = [
       'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
@@ -76,18 +73,18 @@ const MonthlyBalanceChart: React.FC<MonthlyBalanceChartProps> = ({ incomeData, e
   const series = [
     {
       name: 'Ingressos',
-      data: incomeData.map(val => val / 100), // Divide by 100 here
+      data: (metrics?.chartIncomeData || []).map(val => val / 100),
     },
     {
       name: 'Despesas',
-      data: expenseData.map(val => val / 100), // Divide by 100 here
+      data: (metrics?.chartExpenseData || []).map(val => val / 100),
     },
   ];
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-boxdark">
       <h4 className="mb-4 text-lg font-semibold text-black dark:text-white">Balanço Mensal (Últimos 6 Meses)</h4>
-      {loading ? (
+      {isLoading ? (
         <p>Carregando gráfico...</p>
       ) : (
         <ReactApexChart options={options} series={series} type="bar" height={350} />
