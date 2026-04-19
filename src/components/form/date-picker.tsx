@@ -36,8 +36,8 @@ export default function DatePicker({
     if (mode === "month") {
       options.plugins = [
         monthSelectPlugin({
-          shorthand: true, // e.g., "Jan"
-          altFormat: "F Y", // e.g., "January 2025"
+          shorthand: true, 
+          altFormat: "F Y", 
         }),
       ];
     }
@@ -45,9 +45,10 @@ export default function DatePicker({
     const flatPickrInstance = flatpickr(`#${id}`, options);
 
     return () => {
-      if (flatPickrInstance) {
-        flatPickrInstance.destroy();
-      }
+      const instance = Array.isArray(flatPickrInstance)
+        ? flatPickrInstance[0]
+        : flatPickrInstance;
+      instance?.destroy();
     };
   }, [mode, onChange, id, defaultDate]);
 

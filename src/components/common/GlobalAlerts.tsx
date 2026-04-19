@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNotification } from '../../context/NotificationContext';
-import { Close, InfoHexa, CheckCircle, InfoError } from '../../icons';
+import { CloseIcon, InfoIcon, CheckCircleIcon, ErrorIcon } from '../../icons';
 
 const GlobalAlerts: React.FC = () => {
   const { notifications, removeNotification } = useNotification();
@@ -12,12 +12,12 @@ const GlobalAlerts: React.FC = () => {
   const getIcon = (type: string) => {
     switch (type) {
       case 'success':
-        return <CheckCircle className="h-6 w-6 text-green-500" />;
+        return <CheckCircleIcon className="h-6 w-6 text-green-500" />;
       case 'error':
-        return <InfoError className="h-6 w-6 text-red-500" />;
+        return <ErrorIcon className="h-6 w-6 text-red-500" />;
       case 'info':
       default:
-        return <InfoHexa className="h-6 w-6 text-blue-500" />;
+        return <InfoIcon className="h-6 w-6 text-blue-500" />;
     }
   };
 
@@ -66,7 +66,7 @@ const GlobalAlerts: React.FC = () => {
               onClick={() => removeNotification(notification.id)}
               className="absolute top-2 right-2 text-gray-400 hover:text-gray-600"
             >
-              <Close className="h-5 w-5" />
+              <CloseIcon className="h-5 w-5" />
             </button>
           </div>
         ))}

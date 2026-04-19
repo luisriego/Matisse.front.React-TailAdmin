@@ -1,5 +1,5 @@
 import React from 'react';
-import { XMarkIcon } from '@heroicons/react/24/solid';
+import { CloseIcon } from '../../icons';
 
 interface NotificationProps {
   message: string;
@@ -23,7 +23,7 @@ const Notification: React.FC<NotificationProps> = ({ message, type, onClose }) =
         className="absolute top-2 right-2 text-white hover:text-gray-200"
         aria-label="Close"
       >
-        <XMarkIcon className="h-5 w-5" />
+        <CloseIcon className="h-5 w-5" />
       </button>
     </div>
   );

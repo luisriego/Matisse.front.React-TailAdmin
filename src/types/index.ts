@@ -1,8 +1,8 @@
-// --- INTERFACES ---
+
 export interface ExpenseType {
   id: string;
   name: string;
-  distributionMethod: string; // Made required
+  distributionMethod?: string;
 }
 
 export interface ResidentUnit {
@@ -13,15 +13,15 @@ export interface ResidentUnit {
 export interface Account {
   id: string;
   name: string;
-  code?: string; // Added based on the provided JSON
-  description?: string; // Added based on the provided JSON
-  isActive?: boolean; // Added based on the provided JSON
+  code?: string; 
+  description?: string; 
+  isActive?: boolean; 
 }
 
 export interface Expense {
   id: string;
   description: string;
-  amount: number; // in cents
+  amount: number; 
   dueDate: string;
   paidAt: string | null;
   createdAt: string;
@@ -35,18 +35,18 @@ export interface ApiActiveExpense {
   id: string;
   description: string;
   amount: number;
-  dueDate: string; // Corrected to be a string directly
-  paidAt: string | null; // Corrected to be a string or null directly
-  createdAt: string; // Corrected to be a string directly
+  dueDate: string; 
+  paidAt: string | null; 
+  createdAt: string; 
   residentUnitId: string | null;
-  type: { // Explicitly define type structure here
+  type: { 
     id: string;
     code: string;
     name: string;
     description: string;
     distributionMethod: string;
   };
-  account?: Account; // Added based on the provided JSON
+  account?: Account; 
   accountId: string | null;
 }
 
@@ -54,7 +54,7 @@ export interface ApiPendingRecurringExpense {
   id: string;
   accountId: string | null;
   amount: number;
-  type: string; // UUID
+  type: string; 
   dueDay: number;
   monthsOfYear: number[];
   startDate: string;
@@ -67,6 +67,6 @@ export interface ApiPendingRecurringExpense {
 export interface GasReading {
   residentUnitId: string;
   unit: string;
-  previousReading: number; // C/P
-  currentReading: string;  // C/A
+  previousReading: number; 
+  currentReading: string;  
 }

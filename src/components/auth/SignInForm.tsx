@@ -25,7 +25,6 @@ export default function SignInForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [showAssignResidentUnitModal, setShowAssignResidentUnitModal] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [currentUserUnit, setCurrentUserUnit] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -52,13 +51,12 @@ export default function SignInForm() {
 
       const decodedToken = jwtDecode<DecodedToken>(data.token);
       setCurrentUserId(decodedToken.id);
-      setCurrentUserUnit(decodedToken.unit);
 
       if (!decodedToken.unit) {
-        // User has no resident unit assigned, show modal
+        
         setShowAssignResidentUnitModal(true);
       } else {
-        // User has resident unit assigned, redirect to dashboard
+        
         navigate('/');
       }
     } catch (err: any) {
@@ -70,7 +68,7 @@ export default function SignInForm() {
 
   const handleModalClose = () => {
     setShowAssignResidentUnitModal(false);
-    // After modal closes (unit assigned), navigate to dashboard
+    
     navigate('/');
   };
 

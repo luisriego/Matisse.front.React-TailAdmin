@@ -10,9 +10,10 @@ import GenerateSlipsCard from "../components/slips/GenerateSlipsCard";
 import MonthlyExpensesTable from "../components/expenses/MonthlyExpensesTable";
 import FullScreenLoader from "../components/common/FullScreenLoader";
 import { ExpenseType, ResidentUnit, Account, GasReading } from '../types';
+import { parseJsonResponseBody } from '../utils/safeJsonResponse';
 
 const Slips: React.FC = () => {
-  // --- STATE MANAGEMENT ---
+  
   const [targetMonth, setTargetMonth] = useState<Date | null>(new Date());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,17 +38,17 @@ const Slips: React.FC = () => {
 
   const isGenerationDisabled = !extraFee || !reserveFund || !gasUnitPrice || gasReadings.some(reading => !reading.currentReading);
 
-  // --- Helper to fetch reading for a specific unit and month
+  
   const fetchSpecificReading = async (unitId: string, year: number, month: number, token: string): Promise<number> => {
     const headers = { Authorization: `Bearer ${token}` };
     try {
-      // API expects 1-indexed month
+      
       const response = await fetch(`/api/v1/gas/resident-units/${unitId}/reading/${year}/${month}`, { headers });
       if (response.ok) {
         const data = await response.json();
         return data.reading;
       } else if (response.status === 404) {
-        return 0; // No reading found for the period
+        return 0; 
       } else {
         console.error(`Error fetching reading for unit ${unitId} in ${month}/${year}:`, response.statusText);
         return 0;
@@ -58,7 +59,7 @@ const Slips: React.FC = () => {
     }
   };
 
-  // --- DATA FETCHING ---
+  
   useEffect(() => {
     const fetchInitialData = async () => {
       setLoading(true);
@@ -79,17 +80,17 @@ const Slips: React.FC = () => {
           const unitsData: ResidentUnit[] = await unitsRes.json();
           setResidentUnits(unitsData);
 
-          // Calculate the month for which we need the previous reading (targetMonth - 2)
+          
           const previousReadingDate = new Date(targetMonth || new Date());
           previousReadingDate.setMonth(previousReadingDate.getMonth() - 2);
           const previousReadingYear = previousReadingDate.getFullYear();
-          const previousReadingMonth = previousReadingDate.getMonth() + 1; // 1-indexed for API
+          const previousReadingMonth = previousReadingDate.getMonth() + 1; 
 
-          // Calculate the month for which we need the current reading (targetMonth - 1)
+          
           const currentReadingDate = new Date(targetMonth || new Date());
           currentReadingDate.setMonth(currentReadingDate.getMonth() - 1);
           const currentReadingYear = currentReadingDate.getFullYear();
-          const currentReadingMonth = currentReadingDate.getMonth() + 1; // 1-indexed for API
+          const currentReadingMonth = currentReadingDate.getMonth() + 1; 
 
           const readingsPromises = unitsData.map(async unit => {
             const prevReading = await fetchSpecificReading(unit.id, previousReadingYear, previousReadingMonth, token);
@@ -102,13 +103,13 @@ const Slips: React.FC = () => {
             residentUnitId: unit.id,
             unit: unit.unit,
             previousReading: allReadingsData[index].prevReading,
-            currentReading: allReadingsData[index].currReading.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }), // Format to string for input
+            currentReading: allReadingsData[index].currReading.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }), 
           }));
           setGasReadings(initialGasReadings);
 
         } else {
-          const errorData = await unitsRes.json();
-          throw new Error(errorData.message || 'Falha ao carregar unidades residenciais.');
+          const errorData = await parseJsonResponseBody<{ message?: string }>(unitsRes);
+          throw new Error(errorData?.message || 'Falha ao carregar unidades residenciais.');
         }
 
         if (typesRes.ok) {
@@ -130,8 +131,8 @@ const Slips: React.FC = () => {
           const priceInReais = gasPriceData.price_per_m3_in_cents / 100;
           setGasUnitPrice(priceInReais.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
         } else {
-          const errorData = await gasPriceRes.json();
-          const originalMessage = errorData.message || 'Falha ao carregar o preço do gás.';
+          const errorData = await parseJsonResponseBody<{ message?: string }>(gasPriceRes);
+          const originalMessage = errorData?.message || 'Falha ao carregar o preço do gás.';
           const parts = originalMessage.split(':');
           const finalMessage = parts.length > 1 ? parts[parts.length - 1].trim() : originalMessage;
           setPageError(finalMessage);
@@ -152,9 +153,9 @@ const Slips: React.FC = () => {
       }
     };
     fetchInitialData();
-  }, [targetMonth]); // Re-run when targetMonth changes
+  }, [targetMonth]); 
 
-  // --- HANDLERS ---
+  
   const handleMonthChange: Hook = useCallback((selectedDates) => {
     if (selectedDates.length > 0) setTargetMonth(selectedDates[0]);
   }, []);
@@ -269,7 +270,7 @@ const Slips: React.FC = () => {
   };
 
   const handleOpenGasModal = (reading: GasReading) => {
-    // The reading object from the state now contains the correct previousReading and currentReading
+    
     setSelectedGasReading(reading);
     setIsGasModalOpen(true);
   };
@@ -291,7 +292,7 @@ const Slips: React.FC = () => {
       const readingDate = new Date(targetMonth);
       readingDate.setMonth(readingDate.getMonth() - 1);
       const readingYear = readingDate.getFullYear();
-      const readingMonth = readingDate.getMonth() + 1; // 1-indexed for API
+      const readingMonth = readingDate.getMonth() + 1; 
 
       const parseReadingInput = (value: string): number => {
         if (!value) return 0;
@@ -323,19 +324,18 @@ const Slips: React.FC = () => {
         throw new Error(errorData.message || 'Falha ao salvar a leitura de gás.');
       }
 
-      // After saving, re-fetch all previous and current readings to update the table correctly
-      const headers = { Authorization: `Bearer ${token}` };
-      const unitsData = residentUnits; // Use the already fetched resident units
+      
+      const unitsData = residentUnits; 
 
       const previousReadingDate = new Date(targetMonth);
       previousReadingDate.setMonth(previousReadingDate.getMonth() - 2);
       const previousReadingYear = previousReadingDate.getFullYear();
-      const previousReadingMonth = previousReadingDate.getMonth() + 1; // 1-indexed for API
+      const previousReadingMonth = previousReadingDate.getMonth() + 1; 
 
       const currentReadingDate = new Date(targetMonth);
       currentReadingDate.setMonth(currentReadingDate.getMonth() - 1);
       const currentReadingYear = currentReadingDate.getFullYear();
-      const currentReadingMonth = currentReadingDate.getMonth() + 1; // 1-indexed for API
+      const currentReadingMonth = currentReadingDate.getMonth() + 1; 
 
       const readingsPromises = unitsData.map(async unit => {
         const prevReading = await fetchSpecificReading(unit.id, previousReadingYear, previousReadingMonth, token);
@@ -361,7 +361,7 @@ const Slips: React.FC = () => {
     }
   };
 
-  // --- RENDER ---
+  
   return (
     <>
       <FullScreenLoader isOpen={loading && !isConfirmationModalOpen} />

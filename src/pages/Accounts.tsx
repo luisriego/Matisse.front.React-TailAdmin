@@ -7,7 +7,8 @@ import { Account } from "../types/accountApi";
 import Switch from "../components/ui/Switch";
 import EditAccountModal from "../components/modal/EditAccountModal";
 import SetInitialBalanceModal from "../components/modal/SetInitialBalanceModal";
-import AddAccountModal from "../components/modal/AddAccountModal"; // Import the new modal
+import AddAccountModal from "../components/modal/AddAccountModal"; 
+import BankStatementImportModal from "../components/modal/BankStatementImportModal";
 import { PencilIcon, TrashBinIcon, DollarLineIcon } from "../icons";
 
 export default function Accounts() {
@@ -20,7 +21,8 @@ export default function Accounts() {
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [isSetInitialBalanceModalOpen, setIsSetInitialBalanceModalOpen] = useState(false);
   const [accountToSetInitialBalance, setAccountToSetInitialBalance] = useState<Account | null>(null);
-  const [isAddAccountModalOpen, setIsAddAccountModalOpen] = useState(false); // State for the new modal
+  const [isAddAccountModalOpen, setIsAddAccountModalOpen] = useState(false); 
+  const [isImportStatementOpen, setIsImportStatementOpen] = useState(false);
 
   const fetchAccounts = async () => {
     setLoading(true);
@@ -44,7 +46,7 @@ export default function Accounts() {
       const initialAccounts: Account[] = data.accounts;
       setAccounts(initialAccounts);
 
-      // Ahora, obtenemos los saldos para cada cuenta
+      
       setLoadingBalances(true);
       const balancePromises = initialAccounts.map(account =>
         fetch(`/api/v1/accounts/${account.id}/balance`, {
@@ -237,13 +239,23 @@ export default function Accounts() {
         <ComponentCard 
           title="Todas as Contas"
           headerContent={
-            <button
-              onClick={handleOpenAddAccountModal}
-              className="inline-flex items-center justify-center gap-2 px-4 py-3 text-sm transition bg-brand-500 rounded-lg shadow-theme-xs text-white hover:bg-brand-600 disabled:bg-brand-300"
-            >
-              Nova Conta
-              <span className="flex items-center">+</span>
-            </button>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsImportStatementOpen(true)}
+                className="inline-flex items-center justify-center gap-2 px-4 py-3 text-sm transition rounded-lg border border-gray-300 bg-white text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+              >
+                Importar extrato
+              </button>
+              <button
+                type="button"
+                onClick={handleOpenAddAccountModal}
+                className="inline-flex items-center justify-center gap-2 px-4 py-3 text-sm transition bg-brand-500 rounded-lg shadow-theme-xs text-white hover:bg-brand-600 disabled:bg-brand-300"
+              >
+                Nova Conta
+                <span className="flex items-center">+</span>
+              </button>
+            </div>
           }
         >
           {renderContent()}
@@ -270,6 +282,11 @@ export default function Accounts() {
             fetchAccounts();
             setIsAddAccountModalOpen(false);
           }}
+        />
+        <BankStatementImportModal
+          isOpen={isImportStatementOpen}
+          onClose={() => setIsImportStatementOpen(false)}
+          onSuccess={fetchAccounts}
         />
       </div>
     </>

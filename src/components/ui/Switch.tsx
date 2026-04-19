@@ -4,7 +4,7 @@ interface SwitchProps {
   checked: boolean;
   onChange: (checked: boolean) => void;
   disabled?: boolean;
-  label?: string; // Add optional label prop
+  label?: string; 
 }
 
 const Switch: React.FC<SwitchProps> = ({ checked, onChange, disabled, label }) => {

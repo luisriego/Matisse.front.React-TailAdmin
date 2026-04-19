@@ -21,13 +21,13 @@ const AddGasConsumptionModal: React.FC<AddGasConsumptionModalProps> = ({ isOpen,
 
   useEffect(() => {
     if (gasReading) {
-      // Format the initial value for display if it exists
+      
       setCurrentReadingInput(gasReading.currentReading || '');
     }
   }, [gasReading]);
 
   const handleCurrentReadingChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // We store the raw input, and parse it for calculation
+    
     const value = e.target.value;
     setCurrentReadingInput(value);
   };
@@ -43,13 +43,13 @@ const AddGasConsumptionModal: React.FC<AddGasConsumptionModalProps> = ({ isOpen,
 
   const parseReadingInput = (value: string): number => {
     if (!value) return 0;
-    // Standardize to dot as decimal separator
+    
     const sanitized = value.replace(',', '.');
-    // If user provided a decimal separator, trust it.
+    
     if (sanitized.includes('.')) {
       return parseFloat(sanitized) || 0;
     }
-    // If it's just digits (e.g., "361240"), assume 3 decimal places
+    
     if (/^\d+$/.test(sanitized)) {
       return (parseInt(sanitized, 10) || 0) / 1000;
     }
@@ -58,7 +58,7 @@ const AddGasConsumptionModal: React.FC<AddGasConsumptionModalProps> = ({ isOpen,
 
   const parsePtBrPrice = (value: string): number => {
     if (!value) return 0;
-    // Price is like "5,87" or "1.234,56". Remove dots, replace comma.
+    
     const sanitized = value.replace(/\./g, '').replace(',', '.');
     return parseFloat(sanitized) || 0;
   };

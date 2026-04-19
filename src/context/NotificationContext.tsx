@@ -37,7 +37,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     setNextId(prevId => prevId + 1);
     setNotifications(prev => [...prev, { id, message, type }]);
 
-    // Automatically remove notification after 5 seconds
+    
     setTimeout(() => {
       removeNotification(id);
     }, 5000);

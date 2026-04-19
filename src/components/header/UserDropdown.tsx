@@ -27,7 +27,7 @@ export default function UserDropdown() {
       try {
         const decodedToken = jwtDecode<DecodedToken>(token);
         setUserName(decodedToken.name);
-        setUserEmail(decodedToken.username); // Corrected from decodedToken.user
+        setUserEmail(decodedToken.username); 
       } catch (error) {
         console.error('Erro ao decodificar token:', error);
       }
@@ -96,7 +96,7 @@ export default function UserDropdown() {
         className="absolute right-0 mt-[17px] flex w-[260px] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark"
       >
         <div>
-          {/* Removed the duplicate user name */}
+          {}
           <span className="mt-0.5 block text-theme-xs text-gray-500 dark:text-gray-400">
             {userEmail}
           </span>

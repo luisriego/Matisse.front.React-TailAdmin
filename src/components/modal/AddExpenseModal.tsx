@@ -28,7 +28,7 @@ interface AddExpenseModalProps {
   expenseTypes: ExpenseType[];
   residentUnits: ResidentUnit[];
   accounts: Account[];
-  startAsRecurring?: boolean; // New optional prop
+  startAsRecurring?: boolean; 
 }
 
 const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
@@ -38,7 +38,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   expenseTypes,
   residentUnits,
   accounts,
-  startAsRecurring = false, // Default to false
+  startAsRecurring = false, 
 }) => {
   const [isRecurring, setIsRecurring] = useState(startAsRecurring);
   const [description, setDescription] = useState('');
@@ -68,7 +68,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
     }
   };
 
-  // Limpa o formulário quando o modal é fechado o se abre con un nuevo estado inicial
+  
   useEffect(() => {
     if (!isOpen) {
       setIsRecurring(startAsRecurring);
@@ -86,7 +86,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       setSuccess(null);
       setHasPredefinedAmount(false);
     } else {
-      // When modal opens, set initial isRecurring state based on prop
+      
       setIsRecurring(startAsRecurring);
     }
   }, [isOpen, startAsRecurring]);

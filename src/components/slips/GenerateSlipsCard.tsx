@@ -13,7 +13,7 @@ interface GenerateSlipsCardProps {
   error: string | null;
   success: string | null;
   className?: string;
-  isGenerationDisabled?: boolean; // Prop to disable the button from the parent
+  isGenerationDisabled?: boolean; 
 }
 
 const GenerateSlipsCard: React.FC<GenerateSlipsCardProps> = ({
@@ -24,7 +24,7 @@ const GenerateSlipsCard: React.FC<GenerateSlipsCardProps> = ({
   error,
   success,
   className = "",
-  isGenerationDisabled = false, // Default to false
+  isGenerationDisabled = false, 
 }) => {
   return (
     <ComponentCard title="Gerar boletos mensais" className={className}>
@@ -46,7 +46,7 @@ const GenerateSlipsCard: React.FC<GenerateSlipsCardProps> = ({
           </div>
           <button
             onClick={onGenerate}
-            disabled={loading || !targetMonth || isGenerationDisabled} // Use the new prop here
+            disabled={loading || !targetMonth || isGenerationDisabled} 
             className="inline-flex items-center justify-center gap-2 px-4 py-3 text-sm transition bg-brand-500 rounded-lg shadow-theme-xs text-white hover:bg-brand-600 disabled:bg-brand-300 w-full"
           >
             {loading ? (

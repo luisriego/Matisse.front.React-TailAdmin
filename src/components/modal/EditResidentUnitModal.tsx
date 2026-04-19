@@ -51,7 +51,7 @@ const EditResidentUnitModal: React.FC<EditResidentUnitModalProps> = ({ isOpen, o
         throw new Error("Token de autenticação não encontrado.");
       }
 
-      // Assuming a general update endpoint exists, similar to other modules.
+      
       const response = await fetch(`/api/v1/resident-unit/update/${unit.id}`, {
         method: 'PATCH',
         headers: {

@@ -1,8 +1,9 @@
 import React, { useState, useCallback, useEffect, useMemo } from "react";
 import { v4 as uuidv4 } from 'uuid';
-import { ColumnDef } from '../tables/DataTable'; // Mantener ColumnDef si se usa, eliminar DataTable
+import { ColumnDef } from '../tables/DataTable'; 
 import ExpensesCard from './ExpensesCard';
 import AddExpenseModal from '../modal/AddExpenseModal';
+import BankStatementImportModal from '../modal/BankStatementImportModal';
 import { ExpenseType, ResidentUnit, Account, Expense, ApiActiveExpense, ApiPendingRecurringExpense } from '../../types';
 
 interface MonthlyExpensesTableProps {
@@ -26,6 +27,7 @@ const MonthlyExpensesTable: React.FC<MonthlyExpensesTableProps> = ({
     const [expensesError, setExpensesError] = useState<string | null>(null);
     const [savingExpenseId, setSavingExpenseId] = useState<string | null>(null);
     const [isAddExpenseModalOpen, setIsAddExpenseModalOpen] = useState(false);
+    const [isImportStatementOpen, setIsImportStatementOpen] = useState(false);
     const [startModalAsRecurring] = useState(false);
 
     const fetchExpensesForMonth = useCallback(async (year: number, month: number) => {
@@ -69,9 +71,9 @@ const MonthlyExpensesTable: React.FC<MonthlyExpensesTableProps> = ({
                 id: exp.id,
                 description: exp.description,
                 amount: exp.amount,
-                dueDate: exp.dueDate, // Corrected: Access directly
-                paidAt: exp.paidAt, // Corrected: Access directly
-                createdAt: exp.createdAt, // Corrected: Access directly
+                dueDate: exp.dueDate, 
+                paidAt: exp.paidAt, 
+                createdAt: exp.createdAt, 
                 residentUnitId: exp.residentUnitId,
                 expenseType: {
                     id: exp.type.id,
@@ -131,7 +133,7 @@ const MonthlyExpensesTable: React.FC<MonthlyExpensesTableProps> = ({
             return;
         }
 
-        // Corrected: Inlined sanitizedAmount to remove unused variable warning
+        
         const amountInCents = Math.round(parseFloat(editableAmountStr.replace(/\./g, '').replace(',', '.')) * 100);
 
         if (isNaN(amountInCents) || amountInCents <= 0) {
@@ -213,13 +215,13 @@ const MonthlyExpensesTable: React.FC<MonthlyExpensesTableProps> = ({
                     return <span className="text-gray-500 text-theme-sm dark:text-gray-400">N/A</span>;
                 }
 
-                const datePart = expense.dueDate.split(' ')[0]; // Obtiene "YYYY-MM-DD"
-                const parts = datePart.split('-'); // ["YYYY", "MM", "DD"]
+                const datePart = expense.dueDate.split(' ')[0]; 
+                const parts = datePart.split('-'); 
 
                 if (parts.length === 3) {
-                    const year = parts[0].substring(2); // Obtiene "YY"
-                    const month = parts[1]; // Obtiene "MM"
-                    const day = parts[2]; // Obtiene "DD"
+                    const year = parts[0].substring(2); 
+                    const month = parts[1]; 
+                    const day = parts[2]; 
                     return (
                         <span className="text-gray-500 text-theme-sm dark:text-gray-400">
               {`${day}/${month}/${year}`}
@@ -236,7 +238,7 @@ const MonthlyExpensesTable: React.FC<MonthlyExpensesTableProps> = ({
             className: 'w-1/5',
             cell: (expense) => {
                 if (expense.hasPredefinedAmount) {
-                    // Ahora expense.accountId debería estar correctamente poblado desde ApiActiveExpense.account.id
+                    
                     return <span className="text-gray-500 text-theme-sm dark:text-gray-400">{accounts.find(acc => acc.id === expense.accountId)?.name || 'N/A'}</span>;
                 }
                 if (expense.accountId) {
@@ -294,6 +296,17 @@ const MonthlyExpensesTable: React.FC<MonthlyExpensesTableProps> = ({
                 loading={loadingExpenses}
                 error={expensesError}
                 onAddExpense={openAddExpenseModal}
+                onImportBankStatement={() => setIsImportStatementOpen(true)}
+            />
+
+            <BankStatementImportModal
+                isOpen={isImportStatementOpen}
+                onClose={() => setIsImportStatementOpen(false)}
+                onSuccess={() => {
+                    if (targetMonth) {
+                        fetchExpensesForMonth(targetMonth.getFullYear(), targetMonth.getMonth() + 1);
+                    }
+                }}
             />
 
             <AddExpenseModal

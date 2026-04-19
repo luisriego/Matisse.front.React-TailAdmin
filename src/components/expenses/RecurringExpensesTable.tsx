@@ -4,7 +4,7 @@ import DataTable, { ColumnDef } from '../tables/DataTable';
 import AddExpenseModal from '../modal/AddExpenseModal';
 import { ExpenseType, ResidentUnit, Account } from '../../types';
 
-// This interface matches the API response for recurring expense definitions
+
 interface RecurringExpenseDefinition {
     id: string;
     description: string;
@@ -15,7 +15,7 @@ interface RecurringExpenseDefinition {
     monthsOfYear: number[];
     isActive: boolean;
     hasPredefinedAmount: boolean;
-    type: string; // Assuming 'type' (expense type id) is part of the response
+    type: string; 
     accountId: string | null;
 }
 
@@ -53,7 +53,7 @@ const RecurringExpensesTable: React.FC<RecurringExpensesTableProps> = ({
             }
 
             const data = await response.json();
-            setDefinitions(data.expenses || []); // Assuming the definitions are in the 'expenses' property
+            setDefinitions(data.expenses || []); 
 
         } catch (err: unknown) {
             if (err instanceof Error) {

@@ -3,7 +3,7 @@ export interface Recipient {
   email: string;
 }
 
-// This interface defines the full data structure for a Resident Unit
+
 export interface ResidentUnit {
   id: string;
   unit: string;

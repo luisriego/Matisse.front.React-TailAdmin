@@ -58,7 +58,7 @@ const GasConsumptionCard: React.FC<GasConsumptionCardProps> = ({
       ) : (
         <div className="w-full overflow-x-auto">
           <div className="min-w-full">
-            {/* Header */}
+            {}
             <div className="grid grid-cols-12 gap-4 px-4 py-2 text-xs font-semibold text-gray-500 uppercase border-b border-gray-200 dark:border-gray-800 dark:text-gray-400">
               <div className="col-span-3">Unidade</div>
               <div className="col-span-2 text-right">Anterior</div>
@@ -66,7 +66,7 @@ const GasConsumptionCard: React.FC<GasConsumptionCardProps> = ({
               <div className="col-span-2 text-right">Consumo</div>
               <div className="col-span-3 text-right">Valor</div>
             </div>
-            {/* Body */}
+            {}
             <ul className="flex flex-col divide-y divide-gray-200 dark:divide-gray-800">
               {gasReadings.map((reading) => {
                 const currentReadingNum = parseReadingInput(reading.currentReading);

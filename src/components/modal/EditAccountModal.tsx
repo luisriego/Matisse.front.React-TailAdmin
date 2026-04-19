@@ -15,7 +15,7 @@ const EditAccountModal: React.FC<EditAccountModalProps> = ({ isOpen, onClose, ac
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Reset form and error state when a new account is passed or modal is opened
+    
     if (isOpen) {
       setFormData(account);
       setError(null);

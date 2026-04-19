@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../ui/modal';
 import { Account } from '../../types/accountApi';
-import DatePicker from '../form/date-picker'; // Importar el DatePicker
+import DatePicker from '../form/date-picker'; 
 
 interface SetInitialBalanceModalProps {
   isOpen: boolean;
@@ -19,7 +19,7 @@ const SetInitialBalanceModal: React.FC<SetInitialBalanceModalProps> = ({ isOpen,
   useEffect(() => {
     if (isOpen) {
       setAmount(0);
-      // Asegurarse de que la fecha por defecto esté en el formato YYYY-MM-DD
+      
       setDate(new Date().toISOString().split('T')[0]);
       setError(null);
     }

@@ -31,7 +31,7 @@ const EditUnitModal: React.FC<EditUnitModalProps> = ({ isOpen, onClose, unit, on
     }
 
     try {
-      const response = await fetch(`http://localhost:1000/api/v1/resident-unit/${formData.id}/recipients`, {
+      const response = await fetch(`/api/v1/resident-unit/${formData.id}/recipients`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -57,7 +57,7 @@ const EditUnitModal: React.FC<EditUnitModalProps> = ({ isOpen, onClose, unit, on
     if (formData && newRecipient.name && newRecipient.email) {
       await handleSaveRecipient(newRecipient);
       setNewRecipient({ name: '', email: '' });
-      onUnitUpdate(); // Trigger update in parent after adding
+      onUnitUpdate(); 
     }
   };
 
@@ -71,7 +71,7 @@ const EditUnitModal: React.FC<EditUnitModalProps> = ({ isOpen, onClose, unit, on
     }
 
     try {
-      const response = await fetch(`http://localhost:1000/api/v1/resident-unit/${formData.id}/recipients`, {
+      const response = await fetch(`/api/v1/resident-unit/${formData.id}/recipients`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -97,13 +97,12 @@ const EditUnitModal: React.FC<EditUnitModalProps> = ({ isOpen, onClose, unit, on
     e.preventDefault();
     if (!formData || !unit) return;
 
-    // Handle any pending new recipient in the input fields
+    
     if (newRecipient.name && newRecipient.email) {
       await handleSaveRecipient(newRecipient);
       setNewRecipient({ name: '', email: '' });
     }
 
-    const originalRecipients = unit.notificationRecipients.map(r => r.email);
     const currentRecipients = formData.notificationRecipients.map(r => r.email);
 
     const removePromises = unit.notificationRecipients
@@ -132,7 +131,7 @@ const EditUnitModal: React.FC<EditUnitModalProps> = ({ isOpen, onClose, unit, on
             <div className="mt-7">
               <h5 className="mb-5 text-lg font-medium text-gray-800 dark:text-white/90 lg:mb-6">Destinatários de Notificación</h5>
               
-              {/* List of current recipients */}
+              {}
               <div className="space-y-4 mb-6">
                 {formData.notificationRecipients.map((recipient, index) => (
                   <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
@@ -147,7 +146,7 @@ const EditUnitModal: React.FC<EditUnitModalProps> = ({ isOpen, onClose, unit, on
                 ))}
               </div>
 
-              {/* Form to add a new recipient */}
+              {}
               <div className="grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-2">
                 <div className="col-span-2 lg:col-span-1">
                   <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Nome do Novo Destinatário</label>

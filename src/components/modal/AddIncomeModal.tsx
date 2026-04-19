@@ -11,11 +11,19 @@ interface ResidentUnit {
   unit: string;
 }
 
+interface IncomeTypeOption {
+  id: string;
+  name: string;
+  code?: string;
+  description?: string;
+}
+
 interface AddIncomeModalProps {
   isOpen: boolean;
   onClose: () => void;
   onIncomeAdded: () => void;
   residentUnits: ResidentUnit[];
+  incomeTypes: IncomeTypeOption[];
 }
 
 const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
@@ -23,6 +31,7 @@ const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
   onClose,
   onIncomeAdded,
   residentUnits,
+  incomeTypes,
 }) => {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
@@ -155,7 +164,33 @@ const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
 
                 <div className="sm:col-span-2">
                   <label htmlFor="type" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Tipo de Ingresso</label>
-                  <input type="text" id="type" value={type} onChange={(e) => setType(e.target.value)} required className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800" placeholder='Aluguel, Taxa, etc.' />
+                  {incomeTypes.length > 0 ? (
+                    <select
+                      id="type"
+                      value={type}
+                      onChange={(e) => setType(e.target.value)}
+                      required
+                      className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800"
+                    >
+                      <option value="">Selecione o tipo</option>
+                      {incomeTypes.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                          {t.code ? ` (${t.code})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      id="type"
+                      value={type}
+                      onChange={(e) => setType(e.target.value)}
+                      required
+                      className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+                      placeholder="UUID ou nome do tipo (API sem catálogo)"
+                    />
+                  )}
                 </div>
 
                 <div className="sm:col-span-4">

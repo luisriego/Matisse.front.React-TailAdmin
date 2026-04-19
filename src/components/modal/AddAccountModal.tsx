@@ -52,7 +52,7 @@ const AddAccountModal: React.FC<AddAccountModalProps> = ({
         return;
       }
 
-      // 1. Create the account
+      
       const createAccountPayload = {
         id: uuidv4(),
         name,
@@ -70,15 +70,15 @@ const AddAccountModal: React.FC<AddAccountModalProps> = ({
 
       let newAccountId: string;
       if (createAccountResponse.ok) {
-        if (createAccountResponse.status === 204) { // No Content
-          newAccountId = createAccountPayload.id; // Use the ID we sent
+        if (createAccountResponse.status === 204) { 
+          newAccountId = createAccountPayload.id; 
         } else {
           try {
             const newAccount = await createAccountResponse.json();
             newAccountId = newAccount.id;
           } catch (jsonError) {
             console.error("Failed to parse JSON for new account creation, assuming ID from payload:", jsonError);
-            newAccountId = createAccountPayload.id; // Fallback
+            newAccountId = createAccountPayload.id; 
           }
         }
       } else {
@@ -89,14 +89,14 @@ const AddAccountModal: React.FC<AddAccountModalProps> = ({
         } catch (jsonError) {
           const errorText = await createAccountResponse.text().catch(() => 'Erro desconhecido.');
           console.error("Failed to parse JSON for account creation error, raw response:", errorText);
-          errorMessage = `Falha ao criar a conta: ${errorText.substring(0, 100)}`; // Truncate for display
+          errorMessage = `Falha ao criar a conta: ${errorText.substring(0, 100)}`; 
         }
         setError(errorMessage);
         setLoading(false);
         return;
       }
 
-      // 2. Set initial balance if provided
+      
       if (initialBalance !== 0) {
         const setBalancePayload = {
           amount: initialBalance * 100,
@@ -128,9 +128,9 @@ const AddAccountModal: React.FC<AddAccountModalProps> = ({
         }
       }
 
-      // 3. Update description if provided (and include name and code)
+      
       if (description.trim() !== '') {
-        // Explicitly check if name and code are not empty before sending PATCH
+        
         if (!name.trim() || !code.trim()) {
           setError('Nome e Código são obrigatórios para atualizar a descrição.');
           setLoading(false);
@@ -138,8 +138,8 @@ const AddAccountModal: React.FC<AddAccountModalProps> = ({
         }
 
         const updateDescriptionPayload = {
-          name, // Include name
-          code, // Include code
+          name, 
+          code, 
           description,
         };
 

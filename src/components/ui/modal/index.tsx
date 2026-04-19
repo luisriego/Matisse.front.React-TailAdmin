@@ -8,7 +8,7 @@ interface ModalProps {
   children: React.ReactNode;
   showCloseButton?: boolean;
   isFullscreen?: boolean;
-  widthClass?: string; // New prop for width control
+  widthClass?: string; 
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -19,7 +19,7 @@ export const Modal: React.FC<ModalProps> = ({
   className,
   showCloseButton = true,
   isFullscreen = false,
-  widthClass = "max-w-lg", // Default width if not specified
+  widthClass = "max-w-lg", 
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
 

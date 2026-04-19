@@ -34,7 +34,7 @@ const Calendar: React.FC = () => {
   };
 
   useEffect(() => {
-    // Initialize with some events
+    
     setEvents([
       {
         id: "1",
@@ -77,7 +77,7 @@ const Calendar: React.FC = () => {
 
   const handleAddOrUpdateEvent = () => {
     if (selectedEvent) {
-      // Update existing event
+      
       setEvents((prevEvents) =>
         prevEvents.map((event) =>
           event.id === selectedEvent.id
@@ -92,7 +92,7 @@ const Calendar: React.FC = () => {
         )
       );
     } else {
-      // Add new event
+      
       const newEvent: CalendarEvent = {
         id: Date.now().toString(),
         title: eventTitle,

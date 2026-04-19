@@ -8,7 +8,7 @@ import ExpensesCard from "../components/expenses/ExpensesCard";
 interface ExpenseType {
   id: string;
   name: string;
-  distributionMethod?: string; // Added distributionMethod
+  distributionMethod?: string; 
 }
 
 interface ResidentUnit {
@@ -21,18 +21,18 @@ interface Account {
   name: string;
 }
 
-// Interfaz actualizada para coincidir con la respuesta de la API
+
 interface Expense {
   id: string;
   description: string;
-  amount: number; // in cents
+  amount: number; 
   dueDate: string;
   paidAt: string | null;
   createdAt: string;
   residentUnitId: string | null;
   expenseType: ExpenseType;
-  hasPredefinedAmount: boolean; // Added for compatibility with ExpensesCard
-  accountId: string | null; // Added for compatibility with ExpensesCard
+  hasPredefinedAmount: boolean; 
+  accountId: string | null; 
 }
 
 interface ApiExpense {
@@ -53,11 +53,64 @@ interface ApiExpense {
   accountId: string | null;
 }
 
-// Interfaz para la respuesta de la API de unidades
+
 interface ApiResidentUnit {
   id: string;
   unit: string;
 }
+
+const LAST_IMPORTED_STATEMENT_PERIOD_KEY = "bank.lastImportedStatementPeriod";
+
+const isValidPeriod = (period: string): boolean => /^\d{4}-(0[1-9]|1[0-2])$/.test(period);
+
+const getInitialPeriod = (): string => {
+  const importedPeriod = localStorage.getItem(LAST_IMPORTED_STATEMENT_PERIOD_KEY) ?? "";
+  if (isValidPeriod(importedPeriod)) {
+    return importedPeriod;
+  }
+  const now = new Date();
+  
+  
+  now.setMonth(now.getMonth() - 1);
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  return `${now.getFullYear()}-${month}`;
+};
+
+const formatPeriodLabel = (period: string): string => {
+  const [year, month] = period.split("-");
+  if (!year || !month) return period;
+  const monthIndex = Number(month) - 1;
+  if (monthIndex < 0 || monthIndex > 11) return period;
+  return `${monthNamesPt[monthIndex]} de ${year}`;
+};
+
+const monthNamesPt = [
+  "janeiro",
+  "fevereiro",
+  "março",
+  "abril",
+  "maio",
+  "junho",
+  "julho",
+  "agosto",
+  "setembro",
+  "outubro",
+  "novembro",
+  "dezembro",
+];
+
+const buildPeriodOptions = (count: number): string[] => {
+  const options: string[] = [];
+  const cursor = new Date();
+  cursor.setDate(1);
+  for (let i = 0; i < count; i += 1) {
+    const year = cursor.getFullYear();
+    const month = String(cursor.getMonth() + 1).padStart(2, "0");
+    options.push(`${year}-${month}`);
+    cursor.setMonth(cursor.getMonth() - 1);
+  }
+  return options;
+};
 
 const Expenses: React.FC = () => {
   const [expenseTypes, setExpenseTypes] = useState<ExpenseType[]>([]);
@@ -68,16 +121,17 @@ const Expenses: React.FC = () => {
   const [loadingExpenses, setLoadingExpenses] = useState(true);
   const [expensesError, setExpensesError] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [selectedPeriod, setSelectedPeriod] = useState<string>(getInitialPeriod());
 
 
-  // Carga de datos para los selectores (Tipos de Despesa y Unidades)
+  
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
         const token = localStorage.getItem("token");
         if (!token) throw new Error("Token não encontrado.");
 
-        // Cargar Tipos de Despesa desde la API
+        
         const expenseTypesResponse = await fetch('/api/v1/expense-types', {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -85,7 +139,7 @@ const Expenses: React.FC = () => {
         const expenseTypesData: ExpenseType[] = await expenseTypesResponse.json();
         setExpenseTypes(expenseTypesData);
 
-        // Cargar Unidades Residenciales desde la API
+        
         const unitsResponse = await fetch('/api/v1/resident-unit/actives', {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -93,7 +147,7 @@ const Expenses: React.FC = () => {
         const unitsData: ApiResidentUnit[] = await unitsResponse.json();
         setResidentUnits(unitsData);
 
-        // Cargar Cuentas desde la API
+        
         const accountsResponse = await fetch('/api/v1/accounts', {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -108,7 +162,7 @@ const Expenses: React.FC = () => {
   }, []);
 
   const fetchExpenses = useCallback(async () => {
-    // A lógica de busca permanece a mesma, mas agora será chamada pelo modal também
+    
     setLoadingExpenses(true);
     setExpensesError(null);
     try {
@@ -117,9 +171,12 @@ const Expenses: React.FC = () => {
         throw new Error("Token de autenticação não encontrado.");
       }
 
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = now.getMonth() + 1; // getMonth() es 0-indexado
+      const [yearRaw, monthRaw] = selectedPeriod.split("-");
+      const year = Number(yearRaw);
+      const month = Number(monthRaw);
+      if (!year || !month) {
+        throw new Error("Período inválido.");
+      }
 
       const response = await fetch(`/api/v1/expenses/date-range/${year}/${month}`, {
         headers: {
@@ -133,7 +190,7 @@ const Expenses: React.FC = () => {
 
       const data: ApiExpense[] = await response.json();
 
-      // Mapeamos la respuesta de la API a la estructura que espera el frontend
+      
       const formattedExpenses: Expense[] = data.map(exp => ({
         ...exp,
         dueDate: exp.dueDate.date,
@@ -142,9 +199,9 @@ const Expenses: React.FC = () => {
         expenseType: {
           id: exp.type.id,
           name: exp.type.name,
-          distributionMethod: exp.type.distributionMethod, // Ensure distributionMethod is passed
+          distributionMethod: exp.type.distributionMethod, 
         },
-        hasPredefinedAmount: true, // Assuming all fetched expenses are confirmed
+        hasPredefinedAmount: true, 
         accountId: exp.accountId,
       }));
 
@@ -155,9 +212,9 @@ const Expenses: React.FC = () => {
     } finally {
       setLoadingExpenses(false);
     }
-  }, []);
+  }, [selectedPeriod]);
 
-  // Carga inicial de despesas
+  
   useEffect(() => {
     fetchExpenses();
   }, [fetchExpenses]);
@@ -206,7 +263,7 @@ const Expenses: React.FC = () => {
       header: 'Unidade',
       className: 'w-40',
       cell: (expense) => {
-        // Buscamos la unidad residencial en el estado `residentUnits` usando el `residentUnitId` del gasto
+        
         const unit = residentUnits.find(u => u.id === expense.residentUnitId);
         return (
           <span className="text-gray-500 text-theme-sm dark:text-gray-400">
@@ -227,6 +284,8 @@ const Expenses: React.FC = () => {
     },
   ];
 
+  const periodOptions = buildPeriodOptions(24);
+
   return (
     <>
       <PageMeta
@@ -236,8 +295,24 @@ const Expenses: React.FC = () => {
       <PageBreadcrumb pageTitle="Despesas" />
 
       <div className="space-y-6">
+        <div className="flex items-center justify-end">
+          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+            <span>Mês/Ano</span>
+            <select
+              value={selectedPeriod}
+              onChange={(e) => setSelectedPeriod(e.target.value)}
+              className="h-10 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-theme-xs focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900"
+            >
+              {periodOptions.map((period) => (
+                <option key={period} value={period}>
+                  {formatPeriodLabel(period)}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         <ExpensesCard
-          title="Todas as despesas do mês atual"
+          title={`Despesas de ${formatPeriodLabel(selectedPeriod)}`}
           expenses={expenses}
           columns={columns}
           loading={loadingExpenses}
