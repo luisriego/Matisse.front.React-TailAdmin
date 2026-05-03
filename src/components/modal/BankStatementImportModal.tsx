@@ -15,11 +15,11 @@ import {
   parseOfxMatchingContext,
   type OfxMatchingContext,
 } from "../../utils/ofxMatchingContext";
-
+import { LAST_IMPORTED_STATEMENT_PERIOD_KEY } from "../../utils/defaultAccountingMonth";
+import DatePicker from "../form/date-picker";
 
 const OFX_INGEST_PATH = "/api/v1/bank/ofx-ingest";
 const OFX_CONFIRM_PATH = "/api/v1/bank/ofx-confirm";
-const LAST_IMPORTED_STATEMENT_PERIOD_KEY = "bank.lastImportedStatementPeriod";
 
 /** Nome da conta contabilística padrão quando o preview não sugere conta (catálogo /api/v1/accounts). */
 const DEFAULT_CHART_ACCOUNT_NAME = "Conta Principal";
@@ -119,10 +119,7 @@ function formatImportError(status: number, rawBody: string, apiDetail?: string):
     /route.*not found/.test(combined);
 
   if (routeMissing) {
-    return (
-      "Rota não encontrada na API. Confirme em /api/v1/doc (Bank / OFX): " +
-      `${OFX_INGEST_PATH} e ${OFX_CONFIRM_PATH}.`
-    );
+    return "Não foi possível concluir a importação do OFX neste momento. Tente novamente em alguns instantes.";
   }
 
   const fromApi = apiDetail?.trim() || rawBody.trim();
@@ -676,8 +673,7 @@ const BankStatementImportModal: React.FC<BankStatementImportModalProps> = ({
           <p className="text-sm text-gray-600 dark:text-gray-400">
             <strong>Passo 1:</strong> envie o ficheiro <strong>OFX</strong>. O servidor devolve uma
             pré-visualização com <strong>débitos (despesas)</strong> e <strong>créditos (ingressos)</strong>.
-            No passo 2 confirma o que gravar ({" "}
-            <code className="text-xs">ofx-confirm</code> em <code className="text-xs">/api/v1/doc</code>).
+            No <strong>passo 2</strong>, confirma o que deseja gravar.
           </p>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -881,11 +877,17 @@ const BankStatementImportModal: React.FC<BankStatementImportModalProps> = ({
                         </select>
                       </td>
                       <td className="px-1 py-1">
-                        <input
-                          type="date"
-                          value={d.dueDate}
-                          onChange={(e) => updateExpenseDraft(i, { dueDate: e.target.value })}
-                          className="h-9 w-[8.5rem] rounded-lg border border-gray-300 bg-white px-1 text-xs dark:border-gray-600 dark:bg-gray-900"
+                        <DatePicker
+                          id={`ofx-expense-due-date-${d.fitId}`}
+                          defaultDate={d.dueDate}
+                          onChange={([selectedDate]) => {
+                            if (selectedDate) {
+                              updateExpenseDraft(i, {
+                                dueDate: selectedDate.toISOString().split("T")[0],
+                              });
+                            }
+                          }}
+                          placeholder="dd/mm/aaaa"
                         />
                       </td>
                     </tr>

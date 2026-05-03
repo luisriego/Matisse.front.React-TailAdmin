@@ -23,9 +23,12 @@ const SlipSettings: React.FC<SlipSettingsProps> = ({
   return (
     <ComponentCard title="Configurações do Boleto" className={className}>
       <div className="space-y-3">
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          Valores da convenção vigente (por unidade). Salvos automaticamente.
+        </p>
         <div>
           <label htmlFor="extra-fee" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Taxa Extra
+            Taxa Extra (por unidade)
           </label>
           <input
             type="text"
@@ -38,7 +41,7 @@ const SlipSettings: React.FC<SlipSettingsProps> = ({
         </div>
         <div>
           <label htmlFor="reserve-fund" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Fundo de Reserva
+            Fundo de Reserva (por unidade)
           </label>
           <input
             type="text"

@@ -1,5 +1,6 @@
 import React from 'react';
 import ComponentCard from '../common/ComponentCard';
+import { parseGasReadingFromUi } from '../../utils/gasReadingParser';
 
 interface ResidentUnit {
   id: string;
@@ -30,15 +31,8 @@ const GasConsumptionCard: React.FC<GasConsumptionCardProps> = ({
 }) => {
 
   const parseReadingInput = (value: string): number => {
-    if (!value) return 0;
-    const sanitized = value.replace(',', '.');
-    if (sanitized.includes('.')) {
-      return parseFloat(sanitized) || 0;
-    }
-    if (/^\d+$/.test(sanitized)) {
-      return (parseInt(sanitized, 10) || 0) / 1000;
-    }
-    return 0;
+    const parsed = parseGasReadingFromUi(value);
+    return typeof parsed === 'number' ? parsed : 0;
   };
 
   const parsePtBrPrice = (value: string): number => {

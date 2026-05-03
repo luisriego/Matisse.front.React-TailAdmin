@@ -9,15 +9,21 @@ interface AddAccountModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAccountAdded: () => void;
+  /** Boletos / onboarding: não fechar ao clicar fora ou Escape sem ação explícita. */
+  closeOnBackdropClick?: boolean;
+  closeOnEscape?: boolean;
+  showCloseButton?: boolean;
 }
 
 const AddAccountModal: React.FC<AddAccountModalProps> = ({
   isOpen,
   onClose,
   onAccountAdded,
+  closeOnBackdropClick = true,
+  closeOnEscape = true,
+  showCloseButton = true,
 }) => {
   const [name, setName] = useState('');
-  const [code, setCode] = useState('');
   const [description, setDescription] = useState('');
   const [initialBalance, setInitialBalance] = useState(0);
   const [initialBalanceDate, setInitialBalanceDate] = useState(new Date().toISOString().split('T')[0]);
@@ -28,7 +34,6 @@ const AddAccountModal: React.FC<AddAccountModalProps> = ({
   useEffect(() => {
     if (!isOpen) {
       setName('');
-      setCode('');
       setDescription('');
       setInitialBalance(0);
       setInitialBalanceDate(new Date().toISOString().split('T')[0]);
@@ -52,11 +57,18 @@ const AddAccountModal: React.FC<AddAccountModalProps> = ({
         return;
       }
 
-      
+      const initialBalanceAmount = Math.round(
+        (Number.isFinite(initialBalance) ? initialBalance : 0) * 100
+      );
+
       const createAccountPayload = {
         id: uuidv4(),
         name,
-        code,
+        initialBalanceAmount,
+        initialBalanceDate: initialBalanceDate,
+        initial_balance_amount: initialBalanceAmount,
+        initial_balance_in_cents: initialBalanceAmount,
+        initial_balance_date: initialBalanceDate,
       };
 
       const createAccountResponse = await fetch('/api/v1/accounts/create', {
@@ -97,49 +109,16 @@ const AddAccountModal: React.FC<AddAccountModalProps> = ({
       }
 
       
-      if (initialBalance !== 0) {
-        const setBalancePayload = {
-          amount: initialBalance * 100,
-          date: initialBalanceDate,
-        };
-
-        const setBalanceResponse = await fetch(`/api/v1/accounts/${newAccountId}/initial-balance`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(setBalancePayload),
-        });
-
-        if (!setBalanceResponse.ok) {
-          let errorMessage = 'Conta criada, mas falha ao definir o saldo inicial.';
-          try {
-            const errorData = await setBalanceResponse.json();
-            errorMessage = errorData.message || errorMessage;
-          } catch (jsonError) {
-            const errorText = await setBalanceResponse.text().catch(() => 'Erro desconhecido.');
-            console.error("Failed to parse JSON for initial balance error, raw response:", errorText);
-            errorMessage = `Conta criada, mas falha ao definir o saldo inicial: ${errorText.substring(0, 100)}`;
-          }
-          setError(errorMessage);
-          setLoading(false);
-          return;
-        }
-      }
-
-      
       if (description.trim() !== '') {
         
-        if (!name.trim() || !code.trim()) {
-          setError('Nome e Código são obrigatórios para atualizar a descrição.');
+        if (!name.trim()) {
+          setError('Nome é obrigatório para atualizar a descrição.');
           setLoading(false);
           return;
         }
 
         const updateDescriptionPayload = {
-          name, 
-          code, 
+          name,
           description,
         };
 
@@ -185,13 +164,20 @@ const AddAccountModal: React.FC<AddAccountModalProps> = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Registrar Nova Conta">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Registrar Nova Conta"
+      showCloseButton={showCloseButton}
+      closeOnBackdropClick={closeOnBackdropClick}
+      closeOnEscape={closeOnEscape}
+    >
       <form className="flex flex-col" onSubmit={handleSubmit}>
         <div className="custom-scrollbar h-[450px] overflow-y-auto px-2 pb-3">
           <div className="mt-7">
             <h5 className="mb-5 text-lg font-medium text-gray-800 dark:text-white/90 lg:mb-6">Detalhes da Conta</h5>
             <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
-              <div className="sm:col-span-1">
+              <div className="sm:col-span-2">
                 <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Nome</label>
                 <input
                   type="text"
@@ -201,18 +187,6 @@ const AddAccountModal: React.FC<AddAccountModalProps> = ({
                   required
                   className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
                   placeholder="Nome da conta"
-                />
-              </div>
-              <div className="sm:col-span-1">
-                <label htmlFor="code" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Código</label>
-                <input
-                  type="text"
-                  id="code"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  required
-                  className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-                  placeholder="Código da conta"
                 />
               </div>
               <div className="sm:col-span-2">
@@ -227,12 +201,22 @@ const AddAccountModal: React.FC<AddAccountModalProps> = ({
                 ></textarea>
               </div>
               <div className="sm:col-span-1">
-                <label htmlFor="initialBalance" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Saldo Inicial</label>
+                <label htmlFor="initialBalance" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+                  Saldo inicial (obrigatório na API)
+                </label>
+                <p className="mb-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  O servidor deve gravar o saldo inicial no mesmo pedido{" "}
+                  <code className="text-[11px]">PUT /api/v1/accounts/create</code>{" "}
+                  (<code className="text-[11px]">initialBalanceInCents</code> + data). Zero explícito é válido.
+                </p>
                 <input
                   type="number"
                   id="initialBalance"
                   value={initialBalance}
-                  onChange={(e) => setInitialBalance(parseFloat(e.target.value))}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    setInitialBalance(Number.isFinite(v) ? v : 0);
+                  }}
                   step="0.01"
                   required
                   className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
@@ -240,17 +224,17 @@ const AddAccountModal: React.FC<AddAccountModalProps> = ({
                 />
               </div>
               <div className="sm:col-span-1">
-                  <DatePicker
-                    id="initial-balance-date"
-                    label="Data do Saldo"
-                    defaultDate={initialBalanceDate}
-                    onChange={([selectedDate]) => {
-                      if (selectedDate) {
-                        setInitialBalanceDate(selectedDate.toISOString().split('T')[0]);
-                      }
-                    }}
-                    placeholder="Seleccionar data"
-                  />
+                <DatePicker
+                  id="initial-balance-date"
+                  label="Data do Saldo"
+                  defaultDate={initialBalanceDate}
+                  onChange={([selectedDate]) => {
+                    if (selectedDate) {
+                      setInitialBalanceDate(selectedDate.toISOString().split('T')[0]);
+                    }
+                  }}
+                  placeholder="Seleccionar data"
+                />
               </div>
             </div>
           </div>

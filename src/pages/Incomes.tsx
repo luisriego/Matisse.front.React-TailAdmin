@@ -10,6 +10,7 @@ import {
   parseListResponse,
   readCachedIncomeTypes,
 } from '../utils/catalogCache';
+import { formatDateDMY } from "../utils/dateFormat";
 
 interface ResidentUnit {
   id: string;
@@ -231,7 +232,7 @@ const Incomes: React.FC = () => {
       className: 'w-32',
       cell: (income) => (
         <span className="text-gray-500 text-theme-sm dark:text-gray-400">
-          {new Date(income.dueDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
+          {formatDateDMY(income.dueDate)}
         </span>
       ),
     },

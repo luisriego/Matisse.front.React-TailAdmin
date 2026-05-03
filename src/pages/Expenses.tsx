@@ -4,6 +4,8 @@ import PageBreadcrumb from '../components/common/PageBreadCrumb';
 import { ColumnDef } from '../components/tables/DataTable';
 import AddExpenseModal from '../components/modal/AddExpenseModal';
 import ExpensesCard from "../components/expenses/ExpensesCard";
+import { getDefaultAccountingMonthPeriod } from "../utils/defaultAccountingMonth";
+import { formatDateDMY } from "../utils/dateFormat";
 
 interface ExpenseType {
   id: string;
@@ -59,23 +61,6 @@ interface ApiResidentUnit {
   unit: string;
 }
 
-const LAST_IMPORTED_STATEMENT_PERIOD_KEY = "bank.lastImportedStatementPeriod";
-
-const isValidPeriod = (period: string): boolean => /^\d{4}-(0[1-9]|1[0-2])$/.test(period);
-
-const getInitialPeriod = (): string => {
-  const importedPeriod = localStorage.getItem(LAST_IMPORTED_STATEMENT_PERIOD_KEY) ?? "";
-  if (isValidPeriod(importedPeriod)) {
-    return importedPeriod;
-  }
-  const now = new Date();
-  
-  
-  now.setMonth(now.getMonth() - 1);
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  return `${now.getFullYear()}-${month}`;
-};
-
 const formatPeriodLabel = (period: string): string => {
   const [year, month] = period.split("-");
   if (!year || !month) return period;
@@ -121,7 +106,7 @@ const Expenses: React.FC = () => {
   const [loadingExpenses, setLoadingExpenses] = useState(true);
   const [expensesError, setExpensesError] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [selectedPeriod, setSelectedPeriod] = useState<string>(getInitialPeriod());
+  const [selectedPeriod, setSelectedPeriod] = useState<string>(getDefaultAccountingMonthPeriod());
 
 
   
@@ -254,7 +239,7 @@ const Expenses: React.FC = () => {
       className: 'w-32',
       cell: (expense) => (
         <span className="text-gray-500 text-theme-sm dark:text-gray-400">
-          {new Date(expense.dueDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
+          {formatDateDMY(expense.dueDate)}
         </span>
       ),
     },

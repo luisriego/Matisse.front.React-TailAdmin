@@ -3,6 +3,7 @@ import flatpickr from "flatpickr";
 import "flatpickr/dist/flatpickr.css";
 import monthSelectPlugin from "flatpickr/dist/plugins/monthSelect";
 import "flatpickr/dist/plugins/monthSelect/style.css";
+import { Portuguese } from "flatpickr/dist/l10n/pt.js";
 import Label from "./Label";
 import { CalenderIcon } from "../../icons";
 import Hook = flatpickr.Options.Hook;
@@ -29,8 +30,11 @@ export default function DatePicker({
     const options: flatpickr.Options.Options = {
       mode: mode === "month" ? "single" : mode || "single",
       dateFormat: mode === "month" ? "Y-m" : "Y-m-d",
+      altInput: mode !== "month",
+      altFormat: mode === "month" ? "F Y" : "d/m/Y",
       defaultDate,
       onChange,
+      locale: Portuguese,
     };
 
     if (mode === "month") {

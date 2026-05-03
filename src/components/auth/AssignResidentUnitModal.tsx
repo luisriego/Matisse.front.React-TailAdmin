@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Modal } from '../ui/modal';
 import Label from '../form/Label';
 import Select from '../form/Select';
+import DatePicker from '../form/date-picker';
 import Button from '../ui/button/Button';
 import { prefetchCatalogTypes } from '../../utils/catalogCache';
 
@@ -15,6 +16,59 @@ interface AssignResidentUnitModalProps {
 interface ResidentUnitOption {
   value: string;
   label: string;
+}
+
+/** Conta no passo 3 do assistente: nome + saldo inicial obrigatórios na API de criação. */
+interface WizardAccountRow {
+  name: string;
+  /** Valor em reais (UI); enviado como céntimos no PUT /accounts/create */
+  initialBalanceReais: number;
+  /** YYYY-MM-DD */
+  initialBalanceDate: string;
+}
+
+interface ParsedUnitLine {
+  unit: string;
+  idealFraction: number;
+  initialGasReading: number;
+}
+
+function normalizeUnitName(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function parseUnitNamesInput(
+  raw: string,
+  existingUnits: Set<string>
+): { ok: true; units: string[] } | { ok: false; error: string } {
+  const lines = raw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  if (lines.length === 0) {
+    return { ok: false, error: "A lista de unidades não pode estar vazia." };
+  }
+
+  const seen = new Set<string>();
+  const units: string[] = [];
+  for (const line of lines) {
+    const unit = line.trim();
+    if (!unit) return { ok: false, error: `Unidade vazia na linha "${line}".` };
+    if (unit.length > 10) {
+      return {
+        ok: false,
+        error: `A unidade "${unit}" excede 10 caracteres.`,
+      };
+    }
+    const norm = normalizeUnitName(unit);
+    if (seen.has(norm)) return { ok: false, error: `Unidade duplicada no arquivo: "${unit}".` };
+    if (existingUnits.has(norm)) {
+      return { ok: false, error: `A unidade "${unit}" já existe no banco de dados.` };
+    }
+    seen.add(norm);
+    units.push(unit);
+  }
+  return { ok: true, units };
 }
 
 const AssignResidentUnitModal: React.FC<AssignResidentUnitModalProps> = ({
@@ -37,10 +91,18 @@ const AssignResidentUnitModal: React.FC<AssignResidentUnitModalProps> = ({
 
   
   const [textData, setTextData] = useState('');
+  const [knownResidentUnits, setKnownResidentUnits] = useState<string[]>([]);
+  const [refreshingKnownUnits, setRefreshingKnownUnits] = useState(false);
+  const [unitFractions, setUnitFractions] = useState<Record<string, string>>({});
+  const [unitInitialGasReadings, setUnitInitialGasReadings] = useState<Record<string, string>>({});
 
   
-  const [accountsList, setAccountsList] = useState<{name: string}[]>([
-    { name: 'Conta Principal' }
+  const [accountsList, setAccountsList] = useState<WizardAccountRow[]>(() => [
+    {
+      name: "Conta Principal",
+      initialBalanceReais: 0,
+      initialBalanceDate: new Date().toISOString().split("T")[0],
+    },
   ]);
 
   const [gasType, setGasType] = useState<'p45' | 'p20' | 'm3'>('p45');
@@ -48,11 +110,63 @@ const AssignResidentUnitModal: React.FC<AssignResidentUnitModalProps> = ({
   const [cylinderQty, setCylinderQty] = useState('1');
   const [gasM3Price, setGasM3Price] = useState('');
 
+  const livePreview = parseUnitNamesInput(
+    textData,
+    new Set(knownResidentUnits.map(normalizeUnitName))
+  );
+
+  const previewWithFractions: ParsedUnitLine[] =
+    livePreview.ok
+      ? livePreview.units.map((unit) => {
+          const fractionRaw = (unitFractions[unit] ?? "").trim().replace(",", ".");
+          const parsedFraction = Number(fractionRaw);
+          const gasRaw = (unitInitialGasReadings[unit] ?? "").trim().replace(",", ".");
+          const parsedGas = Number(gasRaw);
+          return {
+            unit,
+            idealFraction: Number.isFinite(parsedFraction) ? parsedFraction : 0,
+            initialGasReading: Number.isFinite(parsedGas) ? parsedGas : 0,
+          };
+        })
+      : [];
+
   useEffect(() => {
     if (isOpen) {
       fetchResidentUnits();
     }
   }, [isOpen]);
+
+  const fetchKnownUnits = useCallback(async (): Promise<string[]> => {
+    const token = localStorage.getItem("token");
+    if (!token) return [];
+    setRefreshingKnownUnits(true);
+    try {
+      const response = await fetch('/api/v1/resident-unit/actives', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) return [];
+      let data = await response.json();
+      if (data && data.data) data = data.data;
+      if (data && data.content) data = data.content;
+      if (!Array.isArray(data)) return [];
+      const units = data
+        .map((u: any) => String(u.unit || u.name || "").trim())
+        .filter((u: string) => u.length > 0);
+      setKnownResidentUnits(units);
+      return units;
+    } finally {
+      setRefreshingKnownUnits(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen || wizardStep !== 2) return;
+    void fetchKnownUnits();
+    const id = setInterval(() => {
+      void fetchKnownUnits();
+    }, 15000);
+    return () => clearInterval(id);
+  }, [isOpen, wizardStep, fetchKnownUnits]);
 
   const fetchResidentUnits = async () => {
     setIsLoading(true);
@@ -147,25 +261,67 @@ const AssignResidentUnitModal: React.FC<AssignResidentUnitModalProps> = ({
   };
 
   const addAccountField = () => {
-    setAccountsList([...accountsList, { name: '' }]);
+    setAccountsList((prev) => [
+      ...prev,
+      {
+        name: "",
+        initialBalanceReais: 0,
+        initialBalanceDate: new Date().toISOString().split("T")[0],
+      },
+    ]);
   };
 
-  const updateAccountField = (index: number, value: string) => {
-    const newAccounts = [...accountsList];
-    newAccounts[index].name = value;
-    setAccountsList(newAccounts);
+  const updateAccountRow = <K extends keyof WizardAccountRow>(
+    index: number,
+    field: K,
+    value: WizardAccountRow[K]
+  ) => {
+    setAccountsList((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
   };
 
   const validateStep2 = () => {
     setStepError(null);
-    const lines = textData.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-    if (lines.length === 0) {
-      setStepError("A lista de unidades não pode estar vazia.");
+    const knownSet = new Set(knownResidentUnits.map(normalizeUnitName));
+    const parsed = parseUnitNamesInput(textData, knownSet);
+    if (!parsed.ok) {
+      setStepError(parsed.error);
       return;
     }
-    const overLimit = lines.filter(line => line.length > 10);
-    if (overLimit.length > 0) {
-      setStepError(`O banco de dados aceita no máximo 10 caracteres por unidade. Corrija: ${overLimit.slice(0, 3).join(', ')}...`);
+    const lines = parsed.units.map((unit) => {
+      const raw = (unitFractions[unit] ?? "").trim().replace(",", ".");
+      const value = Number(raw);
+      return { unit, value };
+    });
+    const invalid = lines.find((l) => !Number.isFinite(l.value) || l.value <= 0 || l.value > 1);
+    if (invalid) {
+      setStepError(
+        `Informe uma fração ideal válida (> 0 e <= 1) para a unidade "${invalid.unit}".`
+      );
+      return;
+    }
+    const total = lines.reduce((acc, item) => acc + item.value, 0);
+    if (Math.abs(total - 1) > 0.0001) {
+      setStepError(
+        `A soma das frações deve ser 1,0000. Soma atual: ${total.toFixed(4)}.`
+      );
+      return;
+    }
+    const invalidReading = parsed.units.find((unit) => {
+      const raw = (unitInitialGasReadings[unit] ?? "").trim().replace(",", ".");
+      const v = Number(raw);
+      return !Number.isFinite(v) || v < 0;
+    });
+    if (invalidReading) {
+      setStepError(`Informe o contador inicial de gás (>= 0) para "${invalidReading}".`);
+      return;
+    }
+    const missingReading = parsed.units.find((unit) => (unitInitialGasReadings[unit] ?? "").trim() === "");
+    if (missingReading) {
+      setStepError(`Defina o contador inicial de gás para "${missingReading}".`);
       return;
     }
     setWizardStep(3);
@@ -173,10 +329,23 @@ const AssignResidentUnitModal: React.FC<AssignResidentUnitModalProps> = ({
 
   const validateStep3 = () => {
     setStepError(null);
-    const validAccounts = accountsList.filter(acc => acc.name.trim());
+    const validAccounts = accountsList.filter((acc) => acc.name.trim());
     if (validAccounts.length === 0) {
-      setStepError('Você deve cadastrar ao menos uma conta contábil principal.');
+      setStepError("Você deve cadastrar ao menos uma conta contábil principal.");
       return;
+    }
+    const dateOk = /^\d{4}-\d{2}-\d{2}$/;
+    for (const acc of validAccounts) {
+      if (!dateOk.test(acc.initialBalanceDate)) {
+        setStepError(
+          `Indique uma data de saldo inicial válida (AAAA-MM-DD) para a conta "${acc.name.trim()}".`
+        );
+        return;
+      }
+      if (!Number.isFinite(acc.initialBalanceReais)) {
+        setStepError(`Saldo inicial inválido para a conta "${acc.name.trim()}".`);
+        return;
+      }
     }
     setWizardStep(4);
   };
@@ -212,49 +381,127 @@ const AssignResidentUnitModal: React.FC<AssignResidentUnitModalProps> = ({
       if (!token) throw new Error("Token não encontrado.");
 
       
-      const lines = textData.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+      const latestKnownUnits = await fetchKnownUnits();
+      const knownSet = new Set(latestKnownUnits.map(normalizeUnitName));
+      const parsedUnits = parseUnitNamesInput(textData, knownSet);
+      if (!parsedUnits.ok) {
+        setStepError(parsedUnits.error);
+        setStepLoading(false);
+        return;
+      }
+      const lines: ParsedUnitLine[] = parsedUnits.units.map((unit) => {
+        const raw = (unitFractions[unit] ?? "").trim().replace(",", ".");
+        const parsed = Number(raw);
+        const gasRaw = (unitInitialGasReadings[unit] ?? "").trim().replace(",", ".");
+        const parsedGas = Number(gasRaw);
+        return {
+          unit,
+          idealFraction: Number.isFinite(parsed) ? parsed : NaN,
+          initialGasReading: Number.isFinite(parsedGas) ? parsedGas : NaN,
+        };
+      });
+      const invalid = lines.find((l) => !Number.isFinite(l.idealFraction) || l.idealFraction <= 0 || l.idealFraction > 1);
+      if (invalid) {
+        setStepError(`Fração ideal inválida para "${invalid.unit}".`);
+        setStepLoading(false);
+        return;
+      }
+      const invalidGas = lines.find((l) => !Number.isFinite(l.initialGasReading) || l.initialGasReading < 0);
+      if (invalidGas) {
+        setStepError(`Contador inicial de gás inválido para "${invalidGas.unit}".`);
+        setStepLoading(false);
+        return;
+      }
+      const totalFraction = lines.reduce((acc, item) => acc + item.idealFraction, 0);
+      if (Math.abs(totalFraction - 1) > 0.0001) {
+        setStepError(`A soma das frações deve ser 1,0000. Soma atual: ${totalFraction.toFixed(4)}.`);
+        setStepLoading(false);
+        return;
+      }
       const chunkArray = (array: string[], size: number) => {
-        const result = [];
+        const result: string[][] = [];
         for (let i = 0; i < array.length; i += size) {
           result.push(array.slice(i, i + size));
         }
         return result;
       };
-      const chunks = chunkArray(lines, 5);
+      const chunks = chunkArray(lines.map((l) => l.unit), 5);
+      const createdUnits: Array<{ id: string; unit: string; initialGasReading: number }> = [];
 
+      let lineIndex = 0;
       for (const chunk of chunks) {
-        const promises = chunk.map(unit => {
-          return fetch('/api/v1/resident-unit/create', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ id: crypto.randomUUID(), unit: unit, idealFraction: 0.1, isActive: true, notificationRecipients: [] })
-          }).then(async res => {
+        const promises = chunk.map((unit) => {
+          const idealFraction = lines[lineIndex]?.idealFraction ?? 0;
+          const initialGasReading = lines[lineIndex]?.initialGasReading ?? 0;
+          const residentUnitId = crypto.randomUUID();
+          lineIndex += 1;
+          return fetch("/api/v1/resident-unit/create", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+              id: residentUnitId,
+              unit,
+              idealFraction,
+              isActive: true,
+              notificationRecipients: [],
+            }),
+          }).then(async (res) => {
             if (!res.ok) {
               const dataStr = await res.text();
               throw new Error(`Erro ao criar a unidade "${unit}": ${dataStr}`);
             }
+            createdUnits.push({ id: residentUnitId, unit, initialGasReading });
             return res;
           });
         });
         await Promise.all(promises);
       }
 
+      const now = new Date();
+      const readingYear = now.getFullYear();
+      const readingMonth = now.getMonth() + 1;
+      for (const u of createdUnits) {
+        const readingRes = await fetch("/api/v1/gas/reading", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            id: crypto.randomUUID(),
+            residentUnitId: u.id,
+            year: readingYear,
+            month: readingMonth,
+            reading: u.initialGasReading,
+          }),
+        });
+        if (!readingRes.ok) {
+          const dataStr = await readingRes.text();
+          throw new Error(`Erro ao definir contador inicial de gás para "${u.unit}": ${dataStr}`);
+        }
+      }
+
       
-      let accIndex = 1;
-      for (const acc of accountsList.filter(a => a.name.trim())) {
-        const randLetters = String.fromCharCode(65 + Math.floor(Math.random() * 26), 65 + Math.floor(Math.random() * 26));
-        const randNumbers = Math.floor(10 + Math.random() * 90).toString();
-        const generatedCode = `C${randLetters}${randNumbers}`;
-        const res = await fetch('/api/v1/accounts/create', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ id: crypto.randomUUID(), code: generatedCode, name: acc.name, isActive: true })
+      for (const acc of accountsList.filter((a) => a.name.trim())) {
+        const initialBalanceAmount = Math.round(
+          (Number.isFinite(acc.initialBalanceReais) ? acc.initialBalanceReais : 0) * 100
+        );
+        const openingDate = acc.initialBalanceDate;
+        const res = await fetch("/api/v1/accounts/create", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            id: crypto.randomUUID(),
+            name: acc.name.trim(),
+            isActive: true,
+            initialBalanceAmount,
+            initialBalanceDate: openingDate,
+            initial_balance_amount: initialBalanceAmount,
+            initial_balance_in_cents: initialBalanceAmount,
+            initial_balance_date: openingDate,
+          }),
         });
         if (!res.ok) {
-           const dataStr = await res.text();
-           throw new Error(`Erro ao criar a conta "${acc.name}": ${dataStr}`);
+          const dataStr = await res.text();
+          throw new Error(`Erro ao criar a conta "${acc.name}": ${dataStr}`);
         }
-        accIndex++;
       }
 
       
@@ -314,10 +561,15 @@ const AssignResidentUnitModal: React.FC<AssignResidentUnitModalProps> = ({
     }
   };
 
-  const handleModalClose = () => {};
-
   return (
-    <Modal isOpen={isOpen} onClose={handleModalClose} showCloseButton={false} className="max-w-xl mx-auto">
+    <Modal
+      isOpen={isOpen}
+      onClose={() => {}}
+      showCloseButton={false}
+      className="max-w-xl mx-auto"
+      closeOnBackdropClick={false}
+      closeOnEscape={false}
+    >
       <div className="p-6">
         {isLoading ? (
           <p>Carregando dados estruturais...</p>
@@ -353,7 +605,9 @@ const AssignResidentUnitModal: React.FC<AssignResidentUnitModalProps> = ({
             {wizardStep === 2 && (
               <div>
                 <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-                  Cadastre as unidades. O sistema irá validá-las antes de gerá-las no banco de dados.
+                  Cadastre as unidades por linha (ex.: <code className="text-xs">Apto 101</code>). Em seguida,
+                  preencha a <strong>fração ideal real</strong> e o <strong>contador inicial de gás</strong> de cada
+                  unidade nos campos abaixo. Antes de gravar, o assistente verifica unidades já existentes para evitar duplicados.
                 </p>
                 <div className="mb-4">
                   <Label>Ou carregue via Arquivo .txt / .csv</Label>
@@ -363,13 +617,97 @@ const AssignResidentUnitModal: React.FC<AssignResidentUnitModalProps> = ({
                   />
                 </div>
                 <div>
-                  <Label>Unidades Residenciais (Máx 10 caracteres por linha)</Label>
+                  <Label>Unidades Residenciais (máx. 10 caracteres por linha)</Label>
                   <textarea
                     rows={6} value={textData} onChange={(e) => setTextData(e.target.value)}
                     placeholder={"Exemplo:\nApto 101\nApto 102"}
                     className="w-full mt-1 rounded-lg border border-gray-300 px-4 py-3 text-sm focus:ring-brand-500/20"
                     disabled={stepLoading}
                   />
+                </div>
+                <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-300">
+                  <div className="mb-2 flex items-center justify-between">
+                    <strong>Unidades já detectadas no banco: {knownResidentUnits.length}</strong>
+                    <button
+                      type="button"
+                      onClick={() => void fetchKnownUnits()}
+                      disabled={refreshingKnownUnits || stepLoading}
+                      className="text-brand-600 hover:underline disabled:opacity-50"
+                    >
+                      {refreshingKnownUnits ? "Atualizando..." : "Atualizar lista"}
+                    </button>
+                  </div>
+                  <p className="line-clamp-3">
+                    {knownResidentUnits.length > 0
+                      ? knownResidentUnits.join(", ")
+                      : "Nenhuma unidade ativa encontrada neste momento."}
+                  </p>
+                </div>
+                <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3 text-xs dark:border-gray-700 dark:bg-gray-900/40">
+                  <div className="mb-2 flex items-center justify-between">
+                    <strong>Pré-visualização: fração ideal e contador inicial de gás</strong>
+                    {previewWithFractions.length > 0 && (
+                      <span className="text-gray-600 dark:text-gray-300">
+                        Soma frações:{" "}
+                        <strong>
+                          {previewWithFractions
+                            .reduce((acc, item) => acc + item.idealFraction, 0)
+                            .toFixed(4)}
+                        </strong>
+                      </span>
+                    )}
+                  </div>
+                  {livePreview.ok ? (
+                    <>
+                      <div className="max-h-36 overflow-y-auto rounded border border-gray-200 dark:border-gray-700">
+                        {livePreview.units.slice(0, 30).map((unit) => (
+                          <div
+                            key={unit}
+                            className="grid grid-cols-[1fr_96px_96px] items-center gap-2 px-2 py-1 text-gray-700 odd:bg-gray-50 dark:text-gray-200 dark:odd:bg-gray-800/40"
+                          >
+                            <span>{unit}</span>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={unitFractions[unit] ?? ""}
+                              onChange={(e) =>
+                                setUnitFractions((prev) => ({
+                                  ...prev,
+                                  [unit]: e.target.value,
+                                }))
+                              }
+                              placeholder="0,0000"
+                              className="w-24 rounded border border-gray-300 px-2 py-1 text-right text-xs dark:border-gray-600 dark:bg-gray-900"
+                              disabled={stepLoading}
+                              title="Fração ideal"
+                            />
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={unitInitialGasReadings[unit] ?? ""}
+                              onChange={(e) =>
+                                setUnitInitialGasReadings((prev) => ({
+                                  ...prev,
+                                  [unit]: e.target.value,
+                                }))
+                              }
+                              placeholder="m³ inicial"
+                              className="w-24 rounded border border-gray-300 px-2 py-1 text-right text-xs dark:border-gray-600 dark:bg-gray-900"
+                              disabled={stepLoading}
+                              title="Contador inicial de gás (m³)"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      {livePreview.units.length > 30 && (
+                        <p className="mt-1 text-gray-500 dark:text-gray-400">
+                          Mostrando 30 de {livePreview.units.length} linhas.
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-error-600 dark:text-error-400">{livePreview.error}</p>
+                  )}
                 </div>
                 {stepError && <div className="mt-3 text-sm text-error-500">{stepError}</div>}
                 
@@ -389,18 +727,64 @@ const AssignResidentUnitModal: React.FC<AssignResidentUnitModalProps> = ({
             {wizardStep === 3 && (
               <div>
                 <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-                  Defina as contas contábeis (ex: Conta Corrente principal, Fundo de Reserva, etc.) para gerir o balanço financeiro do edifício. Pelo menos uma conta é necessária para prosseguir.
+                  Defina as contas contábeis (ex.: Conta Corrente principal, Fundo de Reserva) e o{" "}
+                  <strong>saldo inicial</strong> de cada uma na data indicada. Pelo menos uma conta com nome é
+                  necessária; o saldo pode ser zero (abertura explícita), conforme a API de criação.
                 </p>
-                <div className="space-y-3 mb-4 max-h-60 overflow-y-auto">
+                <div className="mb-4 max-h-[min(24rem,55vh)] space-y-3 overflow-y-auto pr-1">
                   {accountsList.map((acc, index) => (
-                    <div key={index} className="flex gap-2 items-center">
-                      <div className="flex-1">
+                    <div
+                      key={index}
+                      className="rounded-lg border border-gray-200 bg-white/80 p-3 dark:border-gray-700 dark:bg-gray-900/40"
+                    >
+                      <div className="mb-2">
                         <Label>Nome da Conta</Label>
                         <input
-                          type="text" value={acc.name} onChange={(e) => updateAccountField(index, e.target.value)}
-                          className="w-full mt-1 rounded-lg border px-3 py-2 text-sm" placeholder="Ex: Conta Principal"
+                          type="text"
+                          value={acc.name}
+                          onChange={(e) => updateAccountRow(index, "name", e.target.value)}
+                          className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
+                          placeholder="Ex: Conta Principal"
                           disabled={stepLoading}
                         />
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div>
+                          <Label>Saldo inicial (R$)</Label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={acc.initialBalanceReais}
+                            onChange={(e) => {
+                              const v = parseFloat(e.target.value);
+                              updateAccountRow(
+                                index,
+                                "initialBalanceReais",
+                                Number.isFinite(v) ? v : 0
+                              );
+                            }}
+                            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
+                            placeholder="0,00"
+                            disabled={stepLoading}
+                          />
+                        </div>
+                        <div>
+                          <DatePicker
+                            id={`initial-balance-date-${index}`}
+                            label="Data do saldo inicial"
+                            defaultDate={acc.initialBalanceDate}
+                            onChange={([selectedDate]) => {
+                              if (selectedDate) {
+                                updateAccountRow(
+                                  index,
+                                  "initialBalanceDate",
+                                  selectedDate.toISOString().split("T")[0]
+                                );
+                              }
+                            }}
+                            placeholder="dd/mm/aaaa"
+                          />
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -413,7 +797,7 @@ const AssignResidentUnitModal: React.FC<AssignResidentUnitModalProps> = ({
                 <div className="mt-6 flex justify-between">
                   <Button variant="outline" disabled={stepLoading} onClick={() => setWizardStep(2)}>Voltar</Button>
                   <button 
-                    disabled={stepLoading || !accountsList[0].name.trim()} 
+                    disabled={stepLoading || !accountsList.some((a) => a.name.trim())} 
                     onClick={validateStep3} 
                     className="inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-50"
                   >

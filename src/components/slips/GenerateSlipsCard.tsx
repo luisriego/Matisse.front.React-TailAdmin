@@ -32,7 +32,7 @@ const GenerateSlipsCard: React.FC<GenerateSlipsCardProps> = ({
         <div className="flex-grow">
           <DatePicker
             id="slip-generation-month"
-            label="Mes y Año"
+            label="Mês e ano"
             onChange={onMonthChange}
             defaultDate={targetMonth || new Date()}
             mode="month"

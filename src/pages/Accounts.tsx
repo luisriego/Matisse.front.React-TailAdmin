@@ -140,16 +140,6 @@ export default function Accounts() {
       ),
     },
     {
-      key: "code",
-      header: "Código",
-      className: "w-24",
-      cell: (account) => (
-        <span className="text-gray-500 text-theme-sm dark:text-gray-400">
-          {account.code}
-        </span>
-      ),
-    },
-    {
       key: "description",
       header: "Descrição",
       cell: (account) => (
@@ -202,15 +192,14 @@ export default function Accounts() {
           <button onClick={() => handleOpenEditModal(account)} className="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white/90">
             <PencilIcon className="size-5" />
           </button>
-          {(account.balance === undefined || account.balance === null || account.balance === 0) && (
-            <button
-              onClick={() => handleOpenSetInitialBalanceModal(account)}
-              className="text-gray-500 hover:text-brand-500 dark:text-gray-400 dark:hover:text-brand-400"
-              title="Definir Saldo Inicial"
-            >
-              <DollarLineIcon className="size-5" />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => handleOpenSetInitialBalanceModal(account)}
+            className="text-gray-500 hover:text-brand-500 dark:text-gray-400 dark:hover:text-brand-400"
+            title="Definir ou corrigir saldo inicial"
+          >
+            <DollarLineIcon className="size-5" />
+          </button>
         </div>
       ),
     },

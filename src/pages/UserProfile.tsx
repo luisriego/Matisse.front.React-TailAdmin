@@ -6,6 +6,7 @@ import { User, DecodedToken, NotificationRecipient } from '../types/user';
 import EditUserModal from '../components/modal/EditUserModal';
 import EditUnitModal from '../components/unit/EditUnitModal';
 import { UserCircleIcon } from '../icons';
+import { formatDateDMY } from "../utils/dateFormat";
 
 const UserProfile: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -162,7 +163,7 @@ const UserProfile: React.FC = () => {
                   </div>
                   <div>
                     <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Membro desde</p>
-                    <p className="text-sm font-medium text-gray-800 dark:text-white/90">{new Date(user.createdAt.date).toLocaleDateString()}</p>
+                    <p className="text-sm font-medium text-gray-800 dark:text-white/90">{formatDateDMY(user.createdAt.date)}</p>
                   </div>
                 </div>
               </div>
@@ -193,7 +194,7 @@ const UserProfile: React.FC = () => {
                     </div>
                     <div>
                       <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Criado em</p>
-                      <p className="text-sm font-medium text-gray-800 dark:text-white/90">{new Date(user.residentUnit.createdAt).toLocaleDateString()}</p>
+                      <p className="text-sm font-medium text-gray-800 dark:text-white/90">{formatDateDMY(user.residentUnit.createdAt)}</p>
                     </div>
                     <div className="lg:col-span-2">
                       <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Destinatários de Notificação</p>

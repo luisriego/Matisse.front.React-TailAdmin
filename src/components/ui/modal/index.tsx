@@ -8,7 +8,11 @@ interface ModalProps {
   children: React.ReactNode;
   showCloseButton?: boolean;
   isFullscreen?: boolean;
-  widthClass?: string; 
+  widthClass?: string;
+  /** Se false, clique fora do painel não chama onClose (fluxos que exigem ação explícita). */
+  closeOnBackdropClick?: boolean;
+  /** Se false, tecla Escape não chama onClose. */
+  closeOnEscape?: boolean;
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -19,35 +23,37 @@ export const Modal: React.FC<ModalProps> = ({
   className,
   showCloseButton = true,
   isFullscreen = false,
-  widthClass = "max-w-lg", 
+  widthClass = "max-w-lg",
+  closeOnBackdropClick = true,
+  closeOnEscape = true,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!isOpen || !closeOnEscape) return;
+
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         onClose();
       }
     };
 
-    if (isOpen) {
-      document.addEventListener("keydown", handleEscape);
-    }
-
+    document.addEventListener("keydown", handleEscape);
     return () => {
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, closeOnEscape]);
 
   useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
     if (isOpen) {
       document.body.style.overflow = "hidden";
     } else {
-      document.body.style.overflow = "unset";
+      document.body.style.overflow = previousOverflow;
     }
 
     return () => {
-      document.body.style.overflow = "unset";
+      document.body.style.overflow = previousOverflow;
     };
   }, [isOpen]);
 
@@ -55,19 +61,20 @@ export const Modal: React.FC<ModalProps> = ({
 
   const contentClasses = isFullscreen
     ? "w-full h-full"
-    : `relative w-full ${widthClass} rounded-3xl bg-white dark:bg-gray-900`;
+    : `relative flex w-full flex-col ${widthClass} max-h-[calc(100vh-4rem)] overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-gray-200/60 dark:bg-gray-900 dark:ring-gray-700/60`;
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center overflow-y-auto modal z-99999">
+    <div className="fixed inset-0 z-99999 overflow-y-auto px-4 py-6 sm:px-6 sm:py-8">
       {!isFullscreen && (
         <div
           className="fixed inset-0 h-full w-full bg-gray-400/50 backdrop-blur-[32px]"
-          onClick={onClose}
+          onClick={closeOnBackdropClick ? onClose : undefined}
+          aria-hidden="true"
         ></div>
       )}
       <div
         ref={modalRef}
-        className={`${contentClasses}  ${className}`}
+        className={`${contentClasses} ${isFullscreen ? "" : "mx-auto my-4 sm:my-6"} ${className}`}
         onClick={(e) => e.stopPropagation()}
       >
         {showCloseButton && (
@@ -92,13 +99,13 @@ export const Modal: React.FC<ModalProps> = ({
           </button>
         )}
         {title && (
-          <div className="border-b border-gray-200 px-5 py-4 dark:border-gray-800 lg:px-10 lg:py-6">
+          <div className="shrink-0 border-b border-gray-200 px-5 py-4 dark:border-gray-800 lg:px-10 lg:py-6">
             <h4 className="text-lg font-medium text-gray-800 dark:text-white/90">
               {title}
             </h4>
           </div>
         )}
-        <div className="p-5 lg:p-10">{children}</div>
+        <div className="custom-scrollbar overflow-y-auto p-5 lg:p-10">{children}</div>
       </div>
     </div>
   );

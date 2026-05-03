@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../ui/modal';
+import { parseGasReadingFromUi } from '../../utils/gasReadingParser';
 
 interface GasReading {
   residentUnitId: string;
@@ -27,9 +28,9 @@ const AddGasConsumptionModal: React.FC<AddGasConsumptionModalProps> = ({ isOpen,
   }, [gasReading]);
 
   const handleCurrentReadingChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    
-    const value = e.target.value;
-    setCurrentReadingInput(value);
+    const raw = e.target.value;
+    const safe = raw.replace(/[^0-9.,]/g, "");
+    setCurrentReadingInput(safe);
   };
 
   const handleSave = () => {
@@ -42,18 +43,8 @@ const AddGasConsumptionModal: React.FC<AddGasConsumptionModalProps> = ({ isOpen,
   if (!gasReading) return null;
 
   const parseReadingInput = (value: string): number => {
-    if (!value) return 0;
-    
-    const sanitized = value.replace(',', '.');
-    
-    if (sanitized.includes('.')) {
-      return parseFloat(sanitized) || 0;
-    }
-    
-    if (/^\d+$/.test(sanitized)) {
-      return (parseInt(sanitized, 10) || 0) / 1000;
-    }
-    return 0;
+    const parsed = parseGasReadingFromUi(value);
+    return typeof parsed === "number" ? parsed : 0;
   };
 
   const parsePtBrPrice = (value: string): number => {
@@ -79,16 +70,21 @@ const AddGasConsumptionModal: React.FC<AddGasConsumptionModalProps> = ({ isOpen,
         </div>
         <div className="flex justify-between items-center">
           <label htmlFor="modal-current-reading" className="text-sm font-medium text-gray-700 dark:text-gray-400">Atual:</label>
-          <input
-            id="modal-current-reading"
-            type="text"
-            inputMode="decimal"
-            value={currentReadingInput}
-            onChange={handleCurrentReadingChange}
-            className="h-9 w-32 appearance-none rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-sm text-right shadow-theme-xs focus:outline-none focus:ring-2 focus:ring-brand-500/50 dark:border-gray-700 dark:bg-gray-900"
-            placeholder="0,000"
-            autoFocus
-          />
+          <div className="flex flex-col items-end">
+            <input
+              id="modal-current-reading"
+              type="text"
+              inputMode="decimal"
+              value={currentReadingInput}
+              onChange={handleCurrentReadingChange}
+              className="h-9 w-32 appearance-none rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-sm text-right shadow-theme-xs focus:outline-none focus:ring-2 focus:ring-brand-500/50 dark:border-gray-700 dark:bg-gray-900"
+              placeholder="0,000"
+              autoFocus
+            />
+            <span className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+              Use vírgula como decimal
+            </span>
+          </div>
         </div>
         <div className="flex justify-between items-center">
           <span className="text-sm font-medium text-gray-700 dark:text-gray-400">Total:</span>

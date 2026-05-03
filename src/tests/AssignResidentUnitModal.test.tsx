@@ -51,13 +51,15 @@ describe('AssignResidentUnitModal Integration via MSW', () => {
     fireEvent.change(input, { target: { value: 'Nome Muito Longo' } });
     fireEvent.click(screen.getByRole('button', { name: /Salvar Unidades e Avançar/i }));
 
-    expect(await screen.findByText(/no máximo 10 caracteres/i)).toBeInTheDocument();
+    const lengthErrors = await screen.findAllByText(/excede 10 caracteres/i);
+    expect(lengthErrors.length).toBeGreaterThan(0);
 
     
     fireEvent.change(input, { target: { value: 'Apto 102' } });
+    fireEvent.change(screen.getByTitle('Fração ideal'), { target: { value: '1' } });
+    fireEvent.change(screen.getByTitle('Contador inicial de gás (m³)'), { target: { value: '0' } });
     fireEvent.click(screen.getByRole('button', { name: /Salvar Unidades e Avançar/i }));
 
-    
     expect(await screen.findByText(/Assistente de Inicialização \(Passo 3/i)).toBeInTheDocument();
   });
 });

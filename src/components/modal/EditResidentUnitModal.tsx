@@ -2,6 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '../ui/modal';
 import { ResidentUnit, Recipient } from '../../types/residentUnit';
 import { TrashBinIcon } from '../../icons';
+import { parseJsonResponseBody } from '../../utils/safeJsonResponse';
+import { getBaselineReferenceYmFromStorage, parseYm } from '../../utils/gasBaselineReference';
+
+/** Interpreta m³ em formato livre (ex.: "1234,567" ou "1.234,567"). */
+function parsePtBrM3(raw: string): number | null | 'invalid' {
+  const t = raw.trim();
+  if (t === '') return null;
+  const normalized = t.replace(/\./g, '').replace(',', '.');
+  const n = Number(normalized);
+  if (!Number.isFinite(n) || n < 0) return 'invalid';
+  return n;
+}
 
 interface EditResidentUnitModalProps {
   isOpen: boolean;
@@ -15,7 +27,11 @@ const EditResidentUnitModal: React.FC<EditResidentUnitModalProps> = ({ isOpen, o
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [newRecipientName, setNewRecipientName] = useState('');
   const [newRecipientEmail, setNewRecipientEmail] = useState('');
-  
+  /** Leitura de referência "inicial" no mês civil escolhido em Boletos (ou mês atual até haver escolha). */
+  const [initialGasM3, setInitialGasM3] = useState('');
+  const [loadingGasReading, setLoadingGasReading] = useState(false);
+  const [gasLoadError, setGasLoadError] = useState<string | null>(null);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,6 +41,60 @@ const EditResidentUnitModal: React.FC<EditResidentUnitModalProps> = ({ isOpen, o
       setRecipients(unit.notificationRecipients || []);
     }
   }, [unit]);
+
+  useEffect(() => {
+    if (!isOpen || !unit) {
+      setInitialGasM3('');
+      setGasLoadError(null);
+      setLoadingGasReading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoadingGasReading(true);
+    setGasLoadError(null);
+    const ym = getBaselineReferenceYmFromStorage();
+    const period = parseYm(ym);
+    void (async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          if (!cancelled) setGasLoadError('Token de autenticação não encontrado.');
+          return;
+        }
+        if (!period) {
+          if (!cancelled) setGasLoadError('Período de referência do gás inválido.');
+          return;
+        }
+        const { year: y, month: m } = period;
+        const res = await fetch(
+          `/api/v1/gas/resident-units/${unit.id}/reading/${y}/${m}`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (cancelled) return;
+        if (res.ok) {
+          const data = (await res.json()) as { reading?: number };
+          const r = Number(data.reading);
+          setInitialGasM3(
+            Number.isFinite(r)
+              ? r.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })
+              : '',
+          );
+        } else if (res.status === 404) {
+          setInitialGasM3('');
+        } else {
+          setGasLoadError('Não foi possível carregar a leitura de gás deste mês.');
+          setInitialGasM3('');
+        }
+      } catch {
+        if (!cancelled) setGasLoadError('Falha ao carregar a leitura de gás.');
+      } finally {
+        if (!cancelled) setLoadingGasReading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, unit?.id]);
 
   const handleAddRecipient = () => {
     if (newRecipientName && newRecipientEmail) {
@@ -51,7 +121,12 @@ const EditResidentUnitModal: React.FC<EditResidentUnitModalProps> = ({ isOpen, o
         throw new Error("Token de autenticação não encontrado.");
       }
 
-      
+      const gasParsed = parsePtBrM3(initialGasM3);
+      if (gasParsed === 'invalid') {
+        throw new Error('Indique um contador inicial de gás válido (m³, ≥ 0) ou deixe em branco para não alterar.');
+      }
+      const gasToSave = gasParsed;
+
       const response = await fetch(`/api/v1/resident-unit/update/${unit.id}`, {
         method: 'PATCH',
         headers: {
@@ -69,10 +144,42 @@ const EditResidentUnitModal: React.FC<EditResidentUnitModalProps> = ({ isOpen, o
         throw new Error(errorData.message || 'Ocorreu um erro desconhecido.');
       }
 
+      if (gasToSave !== null) {
+        const period = parseYm(getBaselineReferenceYmFromStorage());
+        if (!period) {
+          throw new Error(
+            'Defina o mês de referência do contador em Boletos (modal de contadores iniciais) antes de gravar o gás aqui.',
+          );
+        }
+        const { year: readingYear, month: readingMonth } = period;
+        const gasRes = await fetch('/api/v1/gas/reading', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            id: crypto.randomUUID(),
+            residentUnitId: unit.id,
+            year: readingYear,
+            month: readingMonth,
+            reading: gasToSave,
+          }),
+        });
+        if (!gasRes.ok) {
+          const errData = await parseJsonResponseBody<{ message?: string }>(gasRes);
+          throw new Error(
+            errData?.message ||
+              'A unidade foi atualizada, mas falhou ao gravar o contador de gás. Tente de novo ou use Boletos para a leitura do período.',
+          );
+        }
+      }
+
       onUnitUpdate();
       onClose();
-    } catch (err: any) {
-      setError(err.message || 'Ocorreu um erro.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Ocorreu um erro.';
+      setError(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -94,6 +201,34 @@ const EditResidentUnitModal: React.FC<EditResidentUnitModalProps> = ({ isOpen, o
             required
             step="0.00000001"
           />
+        </div>
+
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+          <label htmlFor="initialGasM3" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Contador inicial de gás (m³)
+          </label>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Valor do contador na instalação, gravado no <strong>mês civil de referência</strong> que escolhe em{" "}
+            <strong>Boletos</strong> (modal &quot;Contadores iniciais&quot;). Até lá, usa-se o mês civil corrente. Para a
+            leitura de consumo dos boletos de um mês alvo, use &quot;Consumo de gás por unidade&quot; nessa página.
+          </p>
+          {loadingGasReading && (
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">A carregar leitura…</p>
+          )}
+          <input
+            type="text"
+            id="initialGasM3"
+            inputMode="decimal"
+            value={initialGasM3}
+            onChange={(e) => setInitialGasM3(e.target.value)}
+            placeholder="Ex.: 1234,567"
+            className="mt-2 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-500 focus:border-brand-500 sm:text-sm dark:bg-gray-800 dark:border-gray-600 dark:text-white disabled:opacity-60"
+            disabled={loadingGasReading || isSubmitting}
+            aria-busy={loadingGasReading}
+          />
+          {gasLoadError && (
+            <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">{gasLoadError}</p>
+          )}
         </div>
 
         <div className="border-t border-gray-200 dark:border-gray-700 pt-6">

@@ -41,7 +41,7 @@ describe("Incomes", () => {
     renderIncomes();
 
     expect(
-      await screen.findByText(/Nenhum ingresso registrado ainda/i)
+      await screen.findByText(/Nenhum ingresso registrado no período selecionado/i)
     ).toBeInTheDocument();
   });
 });

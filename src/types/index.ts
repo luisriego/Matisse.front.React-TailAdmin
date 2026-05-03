@@ -13,7 +13,6 @@ export interface ResidentUnit {
 export interface Account {
   id: string;
   name: string;
-  code?: string; 
   description?: string; 
   isActive?: boolean; 
 }

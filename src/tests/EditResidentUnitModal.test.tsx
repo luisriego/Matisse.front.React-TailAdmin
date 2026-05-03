@@ -21,15 +21,18 @@ describe('EditResidentUnitModal Integration', () => {
     vi.clearAllMocks();
     localStorage.setItem('token', 'mock-token');
 
-    
     server.use(
+      http.get('/api/v1/gas/resident-units/:unitId/reading/:year/:month', () => {
+        return HttpResponse.json({ reading: 10.25 });
+      }),
+      http.put('/api/v1/gas/reading', () => HttpResponse.json({}, { status: 201 })),
       http.patch('/api/v1/resident-unit/update/:id', () => {
         return HttpResponse.json({ status: 'updated' }, { status: 200 });
-      })
+      }),
     );
   });
 
-  it('renders correctly with unit data', () => {
+  it('renders correctly with unit data', async () => {
     render(
       <EditResidentUnitModal
         isOpen={true}
@@ -39,16 +42,15 @@ describe('EditResidentUnitModal Integration', () => {
       />
     );
 
-    
     expect(screen.getByText(/Editar Unidade: Apto 101/i)).toBeInTheDocument();
-    
-    
+
     const fractionInput = screen.getByLabelText(/Fração Ideal/i) as HTMLInputElement;
     expect(fractionInput.value).toBe('0.005');
 
-    
     expect(screen.getByText('Juan')).toBeInTheDocument();
     expect(screen.getByText('juan@test.com')).toBeInTheDocument();
+
+    expect(await screen.findByLabelText(/Contador inicial de gás/i)).toBeInTheDocument();
   });
 
   it('adds a new recipient correctly', () => {
@@ -85,17 +87,15 @@ describe('EditResidentUnitModal Integration', () => {
       />
     );
 
-    
+    await screen.findByLabelText(/Contador inicial de gás/i);
+
     const fractionInput = screen.getByLabelText(/Fração Ideal/i);
     fireEvent.change(fractionInput, { target: { value: '0.008' } });
 
-    
     const submitBtn = screen.getByRole('button', { name: 'Salvar' });
     fireEvent.click(submitBtn);
 
-    
     await waitFor(() => {
-      
       expect(onUnitUpdateMock).toHaveBeenCalledTimes(1);
       expect(onCloseMock).toHaveBeenCalledTimes(1);
     });

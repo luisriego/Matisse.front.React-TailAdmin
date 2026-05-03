@@ -46,28 +46,40 @@ Performs a health check of the Account context. This endpoint does not require a
 
 ### `PUT /api/v1/accounts/create`
 
-Creates a new account.
+Creates a new account and persists an **explicit opening balance** in one step (server: `CreateAccountCommand` / `CreateAccountCommandHandler`, EventStore, `InitialBalanceSet`; HTTP: `CreateAccountRequestDto` on `AccountCreatorPutController` — see backend OpenAPI on that controller).
 
-**Request Body:**
+**Request body (DTO / OpenAPI canonical shape, snake_case):**
 
 ```json
 {
   "id": "a7b7b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3b",
-  "code": "1.01.01",
-  "name": "Cash"
+  "name": "Cash",
+  "initial_balance_in_cents": 150000,
+  "initial_balance_date": "2026-04-17"
 }
 ```
 
 **Parameters:**
 
--   `id` (string, required): The unique identifier for the account (UUID format).
--   `code` (string, required): The account code.
--   `name` (string, required): The name of the account.
+-   `id` (string, required): UUID of the new account.
+-   `name` (string, required): Account name.
+-   `initial_balance_in_cents` (integer, **required**): Opening balance in **minor units** (cents). `0` is valid (explicit zero opening on `initial_balance_date`).
+-   `initial_balance_date` (string, **required**): `YYYY-MM-DD` for the opening journal.
+
+If the API is configured to expose **camelCase** JSON, the same fields may appear as `initialBalanceInCents` / `initialBalanceDate`. Missing opening fields → **`400 Bad Request`** (covered by handler / creator / controller tests).
 
 **Responses:**
 
--   `201 Created`: The account was created successfully.
--   `400 Bad Request`: The request was malformed or validation failed.
+-   `201 Created`: Account and opening balance recorded.
+-   `400 Bad Request`: Validation failed (e.g. body without opening balance fields).
+
+**Post-condition:** after create, `GET /api/v1/accounts/{id}/balance` must match the declared opening (same cent convention as the rest of the Account API); backend tests assert this.
+
+**Later corrections:** `PUT /api/v1/accounts/{id}/initial-balance` remains available for **post-hoc** adjustments; it does not replace the mandatory opening on create.
+
+### `PUT /api/v1/accounts/{id}/initial-balance`
+
+Updates or sets the **initial balance** for an existing account (adjustments after onboarding). Body typically includes `amount` (minor units) and `date` (`YYYY-MM-DD`) per server implementation. Use when the opening must be corrected without recreating the account.
 
 ### `GET /api/v1/accounts`
 
@@ -83,7 +95,6 @@ Retrieves a list of all accounts.
 [
   {
     "id": "a7b7b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3b",
-    "code": "1.01.01",
     "name": "Cash",
     "balance": 1500.75,
     "isActive": true,
@@ -92,7 +103,6 @@ Retrieves a list of all accounts.
   },
   {
     "id": "c3e8b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3c",
-    "code": "1.01.02",
     "name": "Savings",
     "balance": 5000.00,
     "isActive": true,
@@ -101,6 +111,10 @@ Retrieves a list of all accounts.
   }
 ]
 ```
+
+### `PATCH /api/v1/accounts/{id}`
+
+Updates account details. Body is **name** and **description** only (no `code`; identity is the UUID).
 
 ### `GET /api/v1/accounts/{id}`
 
@@ -1383,12 +1397,17 @@ Appends a recipient to a resident unit.
 
 ```json
 {
-  "id": "a7b7b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3b",
-  "code": "1.01.01",
-  "name": "Cash",
-  "balance": 1500.75,
-  "isActive": true,
-  "createdAt": "2023-10-27T10:00:00+00:00",
-  "updatedAt": "2023-10-27T10:00:00+00:00"
+  "id": "e4e8b3f0-6b7a-4f2a-8b8b-3b3b3b3b3b3e",
+  "unit": "Apto 101",
+  "recipients": [
+    {
+      "name": "John Doe",
+      "email": "john.doe@example.com"
+    },
+    {
+      "name": "Jane Doe",
+      "email": "jane.doe@example.com"
+    }
+  ]
 }
 ```

@@ -43,14 +43,14 @@ const EditAccountModal: React.FC<EditAccountModalProps> = ({ isOpen, onClose, ac
     }
 
     try {
-      const { id, name, code, description } = formData;
+      const { id, name, description } = formData;
       const response = await fetch(`/api/v1/accounts/${id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ name, code, description })
+        body: JSON.stringify({ name, description })
       });
 
       if (response.ok) {
@@ -85,23 +85,13 @@ const EditAccountModal: React.FC<EditAccountModalProps> = ({ isOpen, onClose, ac
             <div className="mt-7">
               <h5 className="mb-5 text-lg font-medium text-gray-800 dark:text-white/90 lg:mb-6">Detalhes da Conta</h5>
               <div className="grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-2">
-                <div className="col-span-2 lg:col-span-1">
+                <div className="col-span-2">
                   <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Nome</label>
                   <input
                     className=" h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3  dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30  bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-brand-500/20 dark:border-gray-700 dark:text-white/90  dark:focus:border-brand-800"
                     type="text"
                     name="name"
                     value={formData.name || ''}
-                    onChange={handleChange}
-                  />
-                </div>
-                <div className="col-span-2 lg:col-span-1">
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Código</label>
-                  <input
-                    className=" h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3  dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30  bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-brand-500/20 dark:border-gray-700 dark:text-white/90  dark:focus:border-brand-800"
-                    type="text"
-                    name="code"
-                    value={formData.code || ''}
                     onChange={handleChange}
                   />
                 </div>
