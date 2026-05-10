@@ -49,6 +49,9 @@ export interface CreditDraftLine {
   memo: string;
   creditKind: CreditKind;
   incomeTypeId: string;
+  settlementMonth: string;
+  settlementExtraFeePerUnitCents?: number;
+  settlementReserveFundPerUnitCents?: number;
   classificationHint?: string;
   /** true quando status === needs_review (mesmo com sugestões aplicadas) */
   needsHumanReview?: boolean;
@@ -200,6 +203,18 @@ function parseCreditKindFromRow(row: Record<string, unknown>): CreditKind {
   return "boleto_settlement";
 }
 
+function rowPickNumber(row: Record<string, unknown>, keys: string[]): number | undefined {
+  for (const key of keys) {
+    const raw = row[key];
+    if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+    if (typeof raw === "string") {
+      const parsed = Number(raw);
+      if (raw.trim() && Number.isFinite(parsed)) return parsed;
+    }
+  }
+  return undefined;
+}
+
 /** Sugestões do API para tipo de ingresso aplicam a qualquer creditKind (incl. boleto_settlement). */
 function resolveIncomeTypeIdFromPreview(row: Record<string, unknown>): string {
   const direct = rowPickString(row, [
@@ -214,6 +229,13 @@ function resolveIncomeTypeIdFromPreview(row: Record<string, unknown>): string {
     const id = rowPickString(past, ["incomeTypeId", "income_type_id"]);
     if (id) return id;
   }
+  return "";
+}
+
+function resolveSettlementMonthFromPreview(row: Record<string, unknown>): string {
+  const direct = rowPickString(row, ["settlementMonth", "settlement_month"]);
+  if (/^\d{4}-\d{2}$/.test(direct)) return direct;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(direct)) return direct.slice(0, 7);
   return "";
 }
 
@@ -234,6 +256,15 @@ export function rowToCreditDraft(
   if (!fitId || !bankAccountId) return null;
   const creditKind = parseCreditKindFromRow(row);
   const incomeTypeId = resolveIncomeTypeIdFromPreview(row);
+  const settlementMonth = resolveSettlementMonthFromPreview(row);
+  const settlementExtraFeePerUnitCents = rowPickNumber(row, [
+    "settlementExtraFeePerUnitCents",
+    "settlement_extra_fee_per_unit_cents",
+  ]);
+  const settlementReserveFundPerUnitCents = rowPickNumber(row, [
+    "settlementReserveFundPerUnitCents",
+    "settlement_reserve_fund_per_unit_cents",
+  ]);
   const needsHumanReview = isNeedsReviewRow(row);
 
   const src = rowPickString(row, [
@@ -256,6 +287,9 @@ export function rowToCreditDraft(
     memo,
     creditKind,
     incomeTypeId,
+    settlementMonth,
+    settlementExtraFeePerUnitCents,
+    settlementReserveFundPerUnitCents,
     classificationHint,
     needsHumanReview: needsHumanReview || undefined,
   };

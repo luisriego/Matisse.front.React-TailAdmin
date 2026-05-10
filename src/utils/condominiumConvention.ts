@@ -38,6 +38,11 @@ export function saveConvention(values: Omit<CondominiumConvention, "updatedAt">)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(convention));
 }
 
+/** Remove rascunhos da convenção no browser (novo assistente = formulários vazios). */
+export function clearConvention(): void {
+  localStorage.removeItem(STORAGE_KEY);
+}
+
 export function hasConvention(): boolean {
   const c = loadConvention();
   return !!(c.extraFee || c.reserveFund || c.syndicFee);

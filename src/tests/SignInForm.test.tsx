@@ -4,11 +4,6 @@ import { MemoryRouter } from 'react-router-dom';
 import { http, HttpResponse } from 'msw';
 import { server } from './mocks/server';
 import SignInForm from '../components/auth/SignInForm';
-import { jwtDecode } from 'jwt-decode';
-
-vi.mock('jwt-decode', () => ({
-  jwtDecode: vi.fn(),
-}));
 
 describe('SignInForm Integration', () => {
   beforeEach(() => {
@@ -32,8 +27,8 @@ describe('SignInForm Integration', () => {
     render(<MemoryRouter><SignInForm /></MemoryRouter>);
     fireEvent.change(screen.getByPlaceholderText('info@gmail.com'), { target: { value: 'test@example.com' } });
     fireEvent.change(screen.getByPlaceholderText('Digite sua senha'), { target: { value: 'wrongpass' } });
-    
-    
+
+
     const submitBtn = screen.getByRole('button', { name: /Entrar/i });
     fireEvent.click(submitBtn);
 
@@ -43,9 +38,6 @@ describe('SignInForm Integration', () => {
   });
 
   it('logs in successfully and saves token', async () => {
-    
-    (jwtDecode as any).mockReturnValue({ id: 'user123', unit: 'Apto 101' });
-
     server.use(
       http.post('/api/v1/login_check', () => {
         return HttpResponse.json({ token: 'fake-jwt-token' });

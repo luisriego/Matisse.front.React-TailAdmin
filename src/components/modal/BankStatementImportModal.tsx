@@ -91,8 +91,11 @@ function summarizeOfx422ForUser(
 function readOfxConfirmSettlementMeta(body: Record<string, unknown> | null): {
   expectedSlipTotalCents: number | null;
   validatedAgainstSlips: boolean | null;
+  settlementMonth: string | null;
 } {
-  if (!body) return { expectedSlipTotalCents: null, validatedAgainstSlips: null };
+  if (!body) {
+    return { expectedSlipTotalCents: null, validatedAgainstSlips: null, settlementMonth: null };
+  }
   const rawExpected =
     body.settlementExpectedSlipTotalCents ?? body.settlement_expected_slip_total_cents;
   let expectedSlipTotalCents: number | null = null;
@@ -107,7 +110,16 @@ function readOfxConfirmSettlementMeta(body: Record<string, unknown> | null): {
   if (typeof rawVal === "boolean") validatedAgainstSlips = rawVal;
   else if (rawVal === "true" || rawVal === 1) validatedAgainstSlips = true;
   else if (rawVal === "false" || rawVal === 0) validatedAgainstSlips = false;
-  return { expectedSlipTotalCents, validatedAgainstSlips };
+  const rawSettlementMonth = String(
+    body.settlementMonth ?? body.settlement_month ?? ""
+  ).trim();
+  let settlementMonth: string | null = null;
+  if (/^\d{4}-\d{2}$/.test(rawSettlementMonth)) {
+    settlementMonth = rawSettlementMonth;
+  } else if (/^\d{4}-\d{2}-\d{2}$/.test(rawSettlementMonth)) {
+    settlementMonth = rawSettlementMonth.slice(0, 7);
+  }
+  return { expectedSlipTotalCents, validatedAgainstSlips, settlementMonth };
 }
 
 function formatImportError(status: number, rawBody: string, apiDetail?: string): string {
@@ -138,6 +150,17 @@ function sortCatalogByName<T extends { name: string }>(items: T[]): T[] {
 function toDateOnly(value: string): string {
   if (!value) return "";
   return value.includes("T") ? value.slice(0, 10) : value.slice(0, 10);
+}
+
+function toYearMonth(value: string): string {
+  const date = toDateOnly(value);
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date.slice(0, 7) : "";
+}
+
+function formatYearMonthLabel(period: string): string {
+  if (!/^\d{4}-\d{2}$/.test(period)) return "—";
+  const [year, month] = period.split("-");
+  return `${month}/${year}`;
 }
 
 function getDominantPeriod(lines: Array<{ postedAt: string }>): string | null {
@@ -497,6 +520,9 @@ const BankStatementImportModal: React.FC<BankStatementImportModalProps> = ({
     expenseBlockReady &&
     creditBlockReady &&
     !catalogLoading;
+  const bankSettlementPeriod = getDominantPeriod(creditDrafts);
+  const previewSettlementMonth =
+    creditDrafts.find((c) => c.settlementMonth)?.settlementMonth ?? "";
 
   const handleConfirm = async () => {
     setError(null);
@@ -550,18 +576,32 @@ const BankStatementImportModal: React.FC<BankStatementImportModalProps> = ({
       });
 
       const creditLines = creditDrafts.map((c) => {
+        const creditKind: CreditKind =
+          c.creditKind === "other" ? "other" : "boleto_settlement";
         const line: Record<string, unknown> = {
           lineType: "income",
-          creditKind: c.creditKind,
+          creditKind,
           fitId: c.fitId,
           amountInCents: c.amountInCents,
           postedAt: toDateOnly(c.postedAt),
           memo: c.memo,
         };
-        if (c.creditKind === "other") {
-          line.incomeTypeId = c.incomeTypeId;
-        } else if (c.creditKind === "boleto_settlement" && c.incomeTypeId.trim()) {
+        if (creditKind === "other") {
           line.incomeTypeId = c.incomeTypeId.trim();
+        } else if (creditKind === "boleto_settlement" && c.incomeTypeId.trim()) {
+          line.incomeTypeId = c.incomeTypeId.trim();
+        }
+        if (
+          creditKind === "boleto_settlement" &&
+          Number.isFinite(c.settlementExtraFeePerUnitCents)
+        ) {
+          line.settlementExtraFeePerUnitCents = c.settlementExtraFeePerUnitCents;
+        }
+        if (
+          creditKind === "boleto_settlement" &&
+          Number.isFinite(c.settlementReserveFundPerUnitCents)
+        ) {
+          line.settlementReserveFundPerUnitCents = c.settlementReserveFundPerUnitCents;
         }
         return line;
       });
@@ -617,8 +657,15 @@ const BankStatementImportModal: React.FC<BankStatementImportModalProps> = ({
       if (dominantPeriod) {
         localStorage.setItem(LAST_IMPORTED_STATEMENT_PERIOD_KEY, dominantPeriod);
       }
-      const { expectedSlipTotalCents, validatedAgainstSlips } = readOfxConfirmSettlementMeta(body);
+      const { expectedSlipTotalCents, validatedAgainstSlips, settlementMonth } =
+        readOfxConfirmSettlementMeta(body);
       let infoMsg = `Gravado: ${imported} linha(s). Ignoradas (já importadas): ${skipped}.`;
+      if (bankSettlementPeriod) {
+        infoMsg += ` Mês de cobro bancário (postedAt): ${formatYearMonthLabel(bankSettlementPeriod)}.`;
+      }
+      if (settlementMonth) {
+        infoMsg += ` Mês conciliado (settlementMonth): ${formatYearMonthLabel(settlementMonth)}.`;
+      }
       if (validatedAgainstSlips === false) {
         const expLabel =
           expectedSlipTotalCents !== null && Number.isFinite(expectedSlipTotalCents)
@@ -628,11 +675,11 @@ const BankStatementImportModal: React.FC<BankStatementImportModalProps> = ({
               })
             : "R$ 0,00";
         infoMsg +=
-          ` Liquidação de boletos: importado sem conciliação com slips no sistema (total esperado em slips: ${expLabel}). ` +
+          ` Liquidação de boletos: importado sem conciliação no mês conciliado (total esperado em slips: ${expLabel}). ` +
           "Normal no primeiro uso ou quando ainda não há boletos no mês — a reconciliação estrita aplica-se quando existirem dados a casar.";
       } else if (validatedAgainstSlips === true) {
         infoMsg +=
-          " Liquidação de boletos validada contra os slips do mês (totais coincidiram).";
+          " Liquidação de boletos validada contra os slips do mês conciliado (totais coincidiram).";
       }
       setInfo(infoMsg);
       onSuccess?.();
@@ -727,6 +774,12 @@ const BankStatementImportModal: React.FC<BankStatementImportModalProps> = ({
             <strong>Passo 2:</strong> confira débitos (despesas) e créditos (ingressos). Créditos de
             liquidação de boletos devem usar <strong>Liquidação de boletos</strong>; juros, rendimentos
             ou estornos: <strong>Outro</strong> e escolha o tipo de ingresso.
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Mês de cobro bancário: <strong>{formatYearMonthLabel(bankSettlementPeriod ?? "")}</strong>{" "}
+            (derivado de <code>postedAt</code>). Mês conciliado:{" "}
+            <strong>{formatYearMonthLabel(previewSettlementMonth)}</strong> (campo{" "}
+            <code>settlementMonth</code>, competência de conciliação).
           </p>
 
           {catalogLoading && (
@@ -907,7 +960,9 @@ const BankStatementImportModal: React.FC<BankStatementImportModalProps> = ({
                     <tr>
                       <th className="px-2 py-2 font-medium text-gray-700 dark:text-gray-300">Memo</th>
                       <th className="px-2 py-2 font-medium text-gray-700 dark:text-gray-300">Valor</th>
-                      <th className="px-2 py-2 font-medium text-gray-700 dark:text-gray-300">Data</th>
+                      <th className="px-2 py-2 font-medium text-gray-700 dark:text-gray-300">Data de cobro bancário</th>
+                      <th className="px-2 py-2 font-medium text-gray-700 dark:text-gray-300">Mês de cobro</th>
+                      <th className="px-2 py-2 font-medium text-gray-700 dark:text-gray-300">Mês conciliado</th>
                       <th className="px-2 py-2 font-medium text-gray-700 dark:text-gray-300">Classificação</th>
                       <th className="px-2 py-2 font-medium text-gray-700 dark:text-gray-300">Tipo de ingresso</th>
                     </tr>
@@ -941,6 +996,12 @@ const BankStatementImportModal: React.FC<BankStatementImportModalProps> = ({
                         </td>
                         <td className="whitespace-nowrap px-2 py-2 text-gray-600 dark:text-gray-400">
                           {c.postedAt}
+                        </td>
+                        <td className="whitespace-nowrap px-2 py-2 text-gray-600 dark:text-gray-400">
+                          {formatYearMonthLabel(toYearMonth(c.postedAt))}
+                        </td>
+                        <td className="whitespace-nowrap px-2 py-2 text-gray-600 dark:text-gray-400">
+                          {formatYearMonthLabel(c.settlementMonth)}
                         </td>
                         <td className="px-1 py-1">
                           <select

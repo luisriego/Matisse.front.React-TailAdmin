@@ -8,16 +8,15 @@ import EditResidentUnitModal from "../components/modal/EditResidentUnitModal";
 import { ResidentUnit } from "../types/residentUnit"; 
 import BulkAddUnitsModal from "../components/modal/BulkAddUnitsModal";
 
+
 const ResidentUnits: React.FC = () => {
   const [residentUnits, setResidentUnits] = useState<ResidentUnit[]>([]);
   const [loadingResidentUnits, setLoadingResidentUnits] = useState(true);
   const [residentUnitsError, setResidentUnitsError] = useState<string | null>(null);
-  
-  
+
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState<ResidentUnit | null>(null);
 
-  
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
 
   const fetchResidentUnits = useCallback(async () => {
@@ -53,13 +52,11 @@ const ResidentUnits: React.FC = () => {
     fetchResidentUnits();
   }, [fetchResidentUnits]);
 
-  
   const handleOpenEditModal = (unit: ResidentUnit) => {
     setSelectedUnit(unit);
     setIsEditModalOpen(true);
   };
 
-  
   const columns: ColumnDef<ResidentUnit>[] = [
     {
       key: 'unit',
@@ -95,7 +92,7 @@ const ResidentUnits: React.FC = () => {
         className: 'w-28', 
         cell: (unit) => (
             <div className="flex items-center justify-center gap-2">
-                <button onClick={() => handleOpenEditModal(unit)} className="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white/90">
+                <button type="button" onClick={() => handleOpenEditModal(unit)} className="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white/90">
                     <PencilIcon className="size-5" />
                 </button>
             </div>
@@ -112,9 +109,10 @@ const ResidentUnits: React.FC = () => {
       <PageBreadcrumb pageTitle="Unidades Residenciais" />
 
       <div className="space-y-6">
-        <div className="flex justify-end">
+        <div className="flex flex-wrap justify-end gap-2">
           {residentUnits.length === 0 && !loadingResidentUnits && (
             <button
+              type="button"
               onClick={() => setIsBulkModalOpen(true)}
               className="inline-flex items-center justify-center gap-2 rounded-lg transition px-4 py-3 text-sm bg-brand-500 text-white shadow-theme-xs hover:bg-brand-600"
             >
@@ -133,7 +131,7 @@ const ResidentUnits: React.FC = () => {
             <DataTable columns={columns} data={residentUnits} />
           )}
         </ComponentCard>
-        
+
         <EditResidentUnitModal
           isOpen={isEditModalOpen}
           onClose={() => setIsEditModalOpen(false)}

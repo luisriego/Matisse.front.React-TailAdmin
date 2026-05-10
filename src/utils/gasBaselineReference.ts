@@ -1,4 +1,4 @@
-/** Período civil `YYYY-MM` em que se grava a leitura de referência do contador (escolha do utilizador, partilhado entre Boletos e edição de unidade). */
+/** Período `YYYY-MM` do mês de referência em que se grava a leitura do contador (escolha do utilizador, partilhado entre Boletos e edição de unidade). */
 export const GAS_BASELINE_REFERENCE_YM_KEY = "gas.baselineReferenceYm";
 
 export function ymFromDateLocal(d: Date): string {

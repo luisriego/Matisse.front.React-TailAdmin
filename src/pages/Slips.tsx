@@ -25,6 +25,11 @@ import {
 } from "../utils/gasBaselineReference";
 import { parseGasReadingFromUi } from "../utils/gasReadingParser";
 import { loadConvention, saveConvention } from "../utils/condominiumConvention";
+import {
+  clearSlipsWizardReferenceYm,
+  peekSlipsWizardReferenceYm,
+} from "../utils/slipsWizardReference";
+import { loadInitialForecastExpectations } from "../utils/initialForecastExpectations";
 
 type ExplainPayload = {
   targetMonth?: string;
@@ -67,9 +72,10 @@ function getGasPeriodsForTargetMonth(target: Date): {
   };
 }
 
-function getReadingCutoffDate(year: number, month: number): Date {
-  // month is 1-12; day 0 of the same month gives last day of previous month
-  return new Date(year, month - 1, 0);
+/** Formata leitura para a grelha; `null` da API → campo vazio (sem fingir 0 m³). */
+function formatGasReadingForUi(value: number | null): string {
+  if (value === null) return "";
+  return value.toLocaleString("pt-BR", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 }
 
 function parsePtBrM3(raw: string): number | null | "invalid" {
@@ -98,6 +104,13 @@ function parseRequiredCurrencyToCents(raw: string, label: string): number {
     throw new Error(`Valor inválido em "${label}". Use formato como 250,00.`);
   }
   return parsed;
+}
+
+function formatReaisFromCents(cents: number): string {
+  return (cents / 100).toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 function formatCentsToPtBr(cents: number | null | undefined): string {
@@ -202,7 +215,7 @@ function collectUuidCandidates(value: unknown, bucket: Set<string>) {
   }
 }
 
-/** Unidades sem leitura de gás no mês civil indicado (referência do contador inicial). */
+/** Unidades sem leitura de gás no mês de referência indicado (contador inicial). */
 async function fetchUnitsMissingBaselineGas(
   units: ResidentUnit[],
   token: string,
@@ -218,12 +231,64 @@ async function fetchUnitsMissingBaselineGas(
   return missing;
 }
 
+/**
+ * Retrocede desde startYm até encontrar um mês em que todas as unidades já tenham leitura.
+ * Evita pedir de novo "contadores iniciais" quando o armazenamento local aponta para um mês
+ * diferente do período já gravado no servidor (ex.: leituras em 2025-12 mas picker em 2026-01).
+ */
+async function findYmWhereAllUnitsHaveReading(
+  units: ResidentUnit[],
+  token: string,
+  startYm: string,
+  maxMonthsBack = 48,
+): Promise<string | null> {
+  if (units.length === 0) return null;
+  const parsed = parseYm(startYm);
+  if (!parsed) return null;
+  let y = parsed.year;
+  let m = parsed.month;
+  for (let i = 0; i < maxMonthsBack; i++) {
+    const missing = await fetchUnitsMissingBaselineGas(units, token, y, m);
+    if (missing.length === 0) {
+      return `${y}-${String(m).padStart(2, "0")}`;
+    }
+    m -= 1;
+    if (m < 1) {
+      m = 12;
+      y -= 1;
+    }
+  }
+  return null;
+}
+
+async function resolveBaselineGasGate(
+  units: ResidentUnit[],
+  token: string,
+  preferredYm: string,
+): Promise<
+  | { kind: "complete"; ym: string }
+  | { kind: "needsInput"; ym: string; missing: ResidentUnit[] }
+> {
+  if (units.length === 0) {
+    return { kind: "needsInput", ym: preferredYm, missing: [] };
+  }
+  const completeYm = await findYmWhereAllUnitsHaveReading(units, token, preferredYm);
+  if (completeYm) {
+    localStorage.setItem(GAS_BASELINE_REFERENCE_YM_KEY, completeYm);
+    return { kind: "complete", ym: completeYm };
+  }
+  const p = parseYm(preferredYm);
+  const missing = p ? await fetchUnitsMissingBaselineGas(units, token, p.year, p.month) : [];
+  return { kind: "needsInput", ym: preferredYm, missing };
+}
+
 const Slips: React.FC = () => {
   const navigate = useNavigate();
   const [targetMonth, setTargetMonth] = useState<Date | null>(() => getDefaultAccountingMonthDate());
   const [catalogReady, setCatalogReady] = useState(false);
   /** Evita recargar gás duplicado quando o mount já carregou o mesmo mês. */
   const lastGasYmRef = useRef<string | null>(null);
+  const initialForecastHydrateKeyRef = useRef<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
@@ -281,7 +346,13 @@ const Slips: React.FC = () => {
     }
   }, [extraFee, reserveFund]);
 
-  const isGenerationDisabled = !extraFee || !reserveFund || !gasUnitPrice || gasReadings.some(reading => !reading.currentReading);
+  const isGenerationDisabled =
+    !extraFee ||
+    !reserveFund ||
+    !gasUnitPrice ||
+    gasReadings.some(
+      (reading) => !reading.currentReading.trim() || reading.previousReading === null,
+    );
 
   const fetchAccountsOnly = useCallback(async (): Promise<Account[]> => {
     const token = localStorage.getItem("token");
@@ -297,25 +368,29 @@ const Slips: React.FC = () => {
   }, []);
 
   
-  const fetchSpecificReading = useCallback(async (unitId: string, year: number, month: number, token: string): Promise<number> => {
-    const headers = { Authorization: `Bearer ${token}` };
-    try {
-      
-      const response = await fetch(`/api/v1/gas/resident-units/${unitId}/reading/${year}/${month}`, { headers });
-      if (response.ok) {
-        const data = await response.json();
-        return data.reading;
-      } else if (response.status === 404) {
-        return 0; 
-      } else {
+  const fetchSpecificReading = useCallback(
+    async (unitId: string, year: number, month: number, token: string): Promise<number | null> => {
+      const headers = { Authorization: `Bearer ${token}` };
+      try {
+        const response = await fetch(`/api/v1/gas/resident-units/${unitId}/reading/${year}/${month}`, {
+          headers,
+        });
+        if (response.ok) {
+          const data = (await response.json()) as { reading?: unknown };
+          const r = data.reading;
+          if (typeof r === "number" && Number.isFinite(r)) return r;
+          return null;
+        }
+        if (response.status === 404) return null;
         console.error(`Error fetching reading for unit ${unitId} in ${month}/${year}:`, response.statusText);
-        return 0;
+        return null;
+      } catch (err) {
+        console.error(`Exception fetching reading for unit ${unitId} in ${month}/${year}:`, err);
+        return null;
       }
-    } catch (err) {
-      console.error(`Exception fetching reading for unit ${unitId} in ${month}/${year}:`, err);
-      return 0;
-    }
-  }, []);
+    },
+    [],
+  );
 
   const refreshGasReadingsForTargetMonth = useCallback(async () => {
     const token = localStorage.getItem("token");
@@ -338,10 +413,7 @@ const Slips: React.FC = () => {
         residentUnitId: unit.id,
         unit: unit.unit,
         previousReading: allReadingsData[index].prevReading,
-        currentReading: allReadingsData[index].currReading.toLocaleString("pt-BR", {
-          minimumFractionDigits: 3,
-          maximumFractionDigits: 3,
-        }),
+        currentReading: formatGasReadingForUi(allReadingsData[index].currReading),
       })),
     );
     lastGasYmRef.current = monthKey(tm);
@@ -360,7 +432,19 @@ const Slips: React.FC = () => {
         const headers = { Authorization: `Bearer ${token}` };
 
         const fromApi = await findLatestMonthWithExpenseActivity(token);
-        const resolved = fromApi ?? getDefaultAccountingMonthDate();
+        let resolved: Date;
+        if (fromApi) {
+          resolved = fromApi;
+        } else {
+          const wizardYm = peekSlipsWizardReferenceYm();
+          if (wizardYm) {
+            const [y, m] = wizardYm.split("-").map(Number);
+            resolved = new Date(y, m - 1, 1);
+            clearSlipsWizardReferenceYm();
+          } else {
+            resolved = getDefaultAccountingMonthDate();
+          }
+        }
         const monthToUse = resolved;
         if (!cancelled) {
           setTargetMonth((prev) => {
@@ -413,7 +497,7 @@ const Slips: React.FC = () => {
             residentUnitId: unit.id,
             unit: unit.unit,
             previousReading: allReadingsData[index].prevReading,
-            currentReading: allReadingsData[index].currReading.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }), 
+            currentReading: formatGasReadingForUi(allReadingsData[index].currReading),
           }));
           setGasReadings(initialGasReadings);
           lastGasYmRef.current = monthKey(monthToUse);
@@ -468,22 +552,13 @@ const Slips: React.FC = () => {
           accountsLoaded.length > 0
         ) {
           const baselineYm = getBaselineReferenceYmFromStorage();
-          if (!cancelled) setBaselinePeriodYm(baselineYm);
-          const baselineParsed = parseYm(baselineYm);
-          const missingBaseline =
-            baselineParsed && !cancelled
-              ? await fetchUnitsMissingBaselineGas(
-                  residentsLoaded,
-                  token,
-                  baselineParsed.year,
-                  baselineParsed.month,
-                )
-              : [];
-          if (!cancelled && missingBaseline.length > 0) {
-            setUnitsNeedingBaselineGas(missingBaseline);
+          const gate = await resolveBaselineGasGate(residentsLoaded, token, baselineYm);
+          if (!cancelled) setBaselinePeriodYm(gate.ym);
+          if (!cancelled && gate.kind === "needsInput" && gate.missing.length > 0) {
+            setUnitsNeedingBaselineGas(gate.missing);
             setBaselineGasInput((prev) => {
               const next = { ...prev };
-              for (const u of missingBaseline) {
+              for (const u of gate.missing) {
                 if (next[u.id] === undefined) next[u.id] = "";
               }
               return next;
@@ -547,10 +622,7 @@ const Slips: React.FC = () => {
           residentUnitId: unit.id,
           unit: unit.unit,
           previousReading: allReadingsData[index].prevReading,
-          currentReading: allReadingsData[index].currReading.toLocaleString("pt-BR", {
-            minimumFractionDigits: 3,
-            maximumFractionDigits: 3,
-          }),
+          currentReading: formatGasReadingForUi(allReadingsData[index].currReading),
         })),
       );
       lastGasYmRef.current = ym;
@@ -560,6 +632,32 @@ const Slips: React.FC = () => {
       cancelled = true;
     };
   }, [targetMonth, catalogReady, residentUnits, fetchSpecificReading]);
+
+  useEffect(() => {
+    if (!targetMonth || !catalogReady || residentUnits.length === 0) return;
+    const ym = monthKey(targetMonth);
+    const stored = loadInitialForecastExpectations();
+    if (!stored || stored.targetYm !== ym) return;
+    const key = `${ym}|${residentUnits.length}|${extraFee}|${reserveFund}`;
+    if (initialForecastHydrateKeyRef.current === key) return;
+    initialForecastHydrateKeyRef.current = key;
+
+    setExpectedTotalInput(stored.expectedTotal);
+    setExpectedBaseInput(stored.expectedBase);
+    setExpectedSyndicInput(stored.expectedSyndic);
+    setExpectedGasInput(stored.expectedGas);
+    setSyndicDistributionRule(stored.syndicDistribution);
+
+    const n = residentUnits.length;
+    const extraPer = parsePtBrCurrencyToCents(extraFee);
+    const resPer = parsePtBrCurrencyToCents(reserveFund);
+    if (typeof extraPer === "number" && n > 0) {
+      setExpectedExtraInput(formatReaisFromCents(extraPer * n));
+    }
+    if (typeof resPer === "number" && n > 0) {
+      setExpectedReserveInput(formatReaisFromCents(resPer * n));
+    }
+  }, [targetMonth, catalogReady, residentUnits, extraFee, reserveFund]);
 
   
   const handleMonthChange: Hook = useCallback((selectedDates) => {
@@ -748,7 +846,7 @@ const Slips: React.FC = () => {
       let gasLocal: number | null = null;
       if (typeof gasPriceCents === "number" && reading) {
         const currentReading = parseGasReadingFromUi(reading.currentReading);
-        if (typeof currentReading === "number") {
+        if (typeof currentReading === "number" && reading.previousReading !== null) {
           const consumptionM3 = currentReading - reading.previousReading;
           if (consumptionM3 > 0) {
             gasLocal = Math.round(consumptionM3 * gasPriceCents);
@@ -1173,7 +1271,7 @@ const Slips: React.FC = () => {
         residentUnitId: unit.id,
         unit: unit.unit,
         previousReading: allReadingsData[index].prevReading,
-        currentReading: allReadingsData[index].currReading.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }),
+        currentReading: formatGasReadingForUi(allReadingsData[index].currReading),
       })));
 
       setSuccess('Consumo de gás salvo com sucesso!');
@@ -1242,22 +1340,13 @@ const Slips: React.FC = () => {
       if (unitsActRes.ok) {
         const unitsList: ResidentUnit[] = await unitsActRes.json();
         const baselineYm = getBaselineReferenceYmFromStorage();
-        setBaselinePeriodYm(baselineYm);
-        const baselineParsed = parseYm(baselineYm);
-        const missingBaseline =
-          baselineParsed
-            ? await fetchUnitsMissingBaselineGas(
-                unitsList,
-                token,
-                baselineParsed.year,
-                baselineParsed.month,
-              )
-            : [];
-        if (missingBaseline.length > 0) {
-          setUnitsNeedingBaselineGas(missingBaseline);
+        const gate = await resolveBaselineGasGate(unitsList, token, baselineYm);
+        setBaselinePeriodYm(gate.ym);
+        if (gate.kind === "needsInput" && gate.missing.length > 0) {
+          setUnitsNeedingBaselineGas(gate.missing);
           setBaselineGasInput((prev) => {
             const next = { ...prev };
-            for (const u of missingBaseline) {
+            for (const u of gate.missing) {
               if (next[u.id] === undefined) next[u.id] = "";
             }
             return next;
@@ -1323,7 +1412,7 @@ const Slips: React.FC = () => {
     }
     const period = parseYm(baselinePeriodYm);
     if (!period) {
-      setBaselineGasError("Selecione um mês de referência válido (calendário civil).");
+      setBaselineGasError("Selecione um mês de referência válido.");
       return;
     }
     const readingYear = period.year;
@@ -1387,9 +1476,16 @@ const Slips: React.FC = () => {
     const billingLabel = targetMonth.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
     const currentPeriodLabel = `${String(currentReadingMonth).padStart(2, "0")}/${currentReadingYear}`;
     const previousPeriodLabel = `${String(previousReadingMonth).padStart(2, "0")}/${previousReadingYear}`;
-    const currentCutoff = getReadingCutoffDate(currentReadingYear, currentReadingMonth).toLocaleDateString("pt-BR");
-    const previousCutoff = getReadingCutoffDate(previousReadingYear, previousReadingMonth).toLocaleDateString("pt-BR");
-    return `Boletos de ${billingLabel}: leitura atual = período ${currentPeriodLabel} (medida em ${currentCutoff}); leitura anterior = período ${previousPeriodLabel} (medida em ${previousCutoff}).`;
+    return `Boletos: ${billingLabel}. Gás: consumo = leitura ${currentPeriodLabel} − leitura ${previousPeriodLabel}.`;
+  }, [targetMonth]);
+
+  const gasTablePeriodLabels = useMemo(() => {
+    if (!targetMonth) return { previous: "", current: "" };
+    const p = getGasPeriodsForTargetMonth(targetMonth);
+    return {
+      previous: `${String(p.previousReadingMonth).padStart(2, "0")}/${p.previousReadingYear}`,
+      current: `${String(p.currentReadingMonth).padStart(2, "0")}/${p.currentReadingYear}`,
+    };
   }, [targetMonth]);
 
   return (
@@ -1414,9 +1510,10 @@ const Slips: React.FC = () => {
       {!loading && (
         <div className="space-y-6">
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Aqui só edita a <strong className="text-gray-800 dark:text-white/90">leitura de fecho</strong> do gás para
-            calcular boletos. O <strong className="text-gray-800 dark:text-white/90">contador inicial</strong> define-se
-            no modal inicial ou em <strong className="text-gray-800 dark:text-white/90">Unidades residenciais</strong>.
+            Introduza as leituras de gás por unidade para gerar boletos. Contador inicial:{" "}
+            <strong className="text-gray-800 dark:text-white/90">Contadores iniciais</strong> ou{" "}
+            <strong className="text-gray-800 dark:text-white/90">Unidades residenciais</strong>. Se indicou a previsão
+            no assistente inicial, os objetivos em «Validar cálculo» preenchem-se para esse mês.
           </p>
           {gasMonthMappingLabel && (
             <div className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-800 dark:border-brand-800/60 dark:bg-brand-950/30 dark:text-brand-200">
@@ -1458,6 +1555,8 @@ const Slips: React.FC = () => {
               gasReadings={gasReadings}
               gasUnitPrice={gasUnitPrice}
               onOpenGasModal={handleOpenGasModal}
+              previousPeriodLabel={gasTablePeriodLabels.previous}
+              currentPeriodLabel={gasTablePeriodLabels.current}
               className="lg:col-span-6 h-full"
             />
           </div>
@@ -1490,16 +1589,16 @@ const Slips: React.FC = () => {
       >
         <div className="space-y-4">
           <p className="text-sm text-gray-600 dark:text-gray-300">
-            Indique o <strong className="text-gray-800 dark:text-white/90">mês civil</strong> em que estes contadores
-            devem ficar registados (é a sua referência, não o mês “automático” da aplicação). Só aparecem unidades sem
-            leitura nesse período. Pode preencher agora, ignorar por um momento ou ir à gestão de unidades.
+            Escolha o <strong className="text-gray-800 dark:text-white/90">mês de referência</strong>. Cada valor é a
+            leitura do contador nesse mês. Só aparecem unidades sem registo nesse período. Pode gravar aqui, fechar sem
+            gravar ou ir a <strong className="text-gray-800 dark:text-white/90">Unidades residenciais</strong>.
           </p>
           <div>
             <label
               htmlFor="baseline-gas-period-ym"
               className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
             >
-              Mês de referência do contador (calendário civil)
+              Mês de referência do contador
             </label>
             <input
               id="baseline-gas-period-ym"
@@ -1545,6 +1644,12 @@ const Slips: React.FC = () => {
           {baselineGasError && (
             <p className="text-sm text-red-600 dark:text-red-400">{baselineGasError}</p>
           )}
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            <strong className="font-medium text-gray-600 dark:text-gray-300">Fechar sem guardar:</strong> sai deste
+            assistente sem gravar; as unidades continuam sem leitura neste mês.{" "}
+            <strong className="font-medium text-gray-600 dark:text-gray-300">Não definir aqui:</strong> fecha e abre
+            &quot;Unidades residenciais&quot; para registar o contador no formulário de cada unidade.
+          </p>
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end sm:gap-3">
             <button
               type="button"
@@ -1552,7 +1657,7 @@ const Slips: React.FC = () => {
               className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300"
               disabled={savingBaselineGas}
             >
-              Agora não
+              Fechar sem guardar
             </button>
             <button
               type="button"
@@ -1563,7 +1668,7 @@ const Slips: React.FC = () => {
               className="inline-flex items-center justify-center rounded-lg border border-brand-300 bg-brand-50 px-4 py-2 text-sm text-brand-800 hover:bg-brand-100 dark:border-brand-700 dark:bg-brand-950/40 dark:text-brand-200 dark:hover:bg-brand-900/50"
               disabled={savingBaselineGas}
             >
-              Ir para Unidades residenciais
+              Não definir aqui — abrir Unidades residenciais
             </button>
             <button
               type="button"

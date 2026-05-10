@@ -3,6 +3,7 @@ import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { useNavigate } from "react-router-dom";
 import { jwtDecode } from 'jwt-decode';
+import { clearSetupUnitBypass } from '../../utils/jwtResidentialUnit';
 
 interface DecodedToken {
   iat: number;
@@ -50,6 +51,7 @@ export default function UserDropdown() {
 
   const handleLogout = () => {
     localStorage.removeItem('token');
+    clearSetupUnitBypass();
     navigate('/signin');
   };
 

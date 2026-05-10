@@ -27,7 +27,7 @@ const EditResidentUnitModal: React.FC<EditResidentUnitModalProps> = ({ isOpen, o
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [newRecipientName, setNewRecipientName] = useState('');
   const [newRecipientEmail, setNewRecipientEmail] = useState('');
-  /** Leitura de referência "inicial" no mês civil escolhido em Boletos (ou mês atual até haver escolha). */
+  /** Leitura de referência "inicial" no mês de referência escolhido em Boletos (ou mês atual até haver escolha). */
   const [initialGasM3, setInitialGasM3] = useState('');
   const [loadingGasReading, setLoadingGasReading] = useState(false);
   const [gasLoadError, setGasLoadError] = useState<string | null>(null);
@@ -208,9 +208,8 @@ const EditResidentUnitModal: React.FC<EditResidentUnitModalProps> = ({ isOpen, o
             Contador inicial de gás (m³)
           </label>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Valor do contador na instalação, gravado no <strong>mês civil de referência</strong> que escolhe em{" "}
-            <strong>Boletos</strong> (modal &quot;Contadores iniciais&quot;). Até lá, usa-se o mês civil corrente. Para a
-            leitura de consumo dos boletos de um mês alvo, use &quot;Consumo de gás por unidade&quot; nessa página.
+            Leitura do contador no mês de referência definido em Boletos. Até definir, usa-se o mês atual. Consumo mensal:
+            página Boletos, «Consumo de gás por unidade».
           </p>
           {loadingGasReading && (
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">A carregar leitura…</p>

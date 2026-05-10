@@ -66,6 +66,7 @@ export interface ApiPendingRecurringExpense {
 export interface GasReading {
   residentUnitId: string;
   unit: string;
-  previousReading: number; 
-  currentReading: string;  
+  /** Leitura de fecho do mês anterior ao boleto; `null` se a API não tiver registo (não confundir com 0 m³). */
+  previousReading: number | null;
+  currentReading: string;
 }

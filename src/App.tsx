@@ -1,5 +1,9 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+} from "react-router-dom";
 import AppLayout from "./layout/AppLayout";
 import { ScrollToTop } from "./components/common/ScrollToTop";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
@@ -29,6 +33,7 @@ const ResidentUnits = lazy(() => import("./pages/ResidentUnits"));
 const Users = lazy(() => import("./pages/Users"));
 const Slips = lazy(() => import("./pages/Slips"));
 const RecurringExpenses = lazy(() => import("./pages/RecurringExpenses"));
+const Settings = lazy(() => import("./pages/Settings"));
 
 export default function App() {
   return (
@@ -38,7 +43,7 @@ export default function App() {
         <Routes>
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
-              <Route index path="/" element={<Home />} />
+              <Route index element={<Home />} />
 
               <Route path="/profile" element={<UserProfile />} />
               <Route path="/calendar" element={<Calendar />} />
@@ -51,6 +56,7 @@ export default function App() {
               <Route path="/unidades-residenciais" element={<ResidentUnits />} />
               <Route path="/boletos" element={<Slips />} />
               <Route path="/usuarios" element={<Users />} />
+              <Route path="/configuracoes" element={<Settings />} />
 
               <Route path="/form-elements" element={<FormElements />} />
               <Route path="/basic-tables" element={<BasicTables />} />
