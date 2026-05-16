@@ -2,8 +2,14 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import PageMeta from '../components/common/PageMeta';
 import PageBreadcrumb from '../components/common/PageBreadCrumb';
 import ComponentCard from '../components/common/ComponentCard';
-import DataTable, { ColumnDef } from '../components/tables/DataTable';
 import AddIncomeModal from '../components/modal/AddIncomeModal';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHeader,
+  TableRow,
+} from "../components/ui/table";
 import {
   API_INCOME_TYPES,
   CATALOG_STORAGE_KEYS,
@@ -11,6 +17,8 @@ import {
   readCachedIncomeTypes,
 } from '../utils/catalogCache';
 import { formatDateDMY } from "../utils/dateFormat";
+import { parseLedgerSourceList } from "../utils/buildAccountLedger";
+import { isBankYieldBundleMemo } from "../utils/ofxBankYieldMemo";
 
 interface ResidentUnit {
   id: string;
@@ -38,20 +46,105 @@ interface Income {
 }
 
 
-interface ApiIncome {
-  id:string; 
-  residentUnitId: string;
-  amount: number;
-  type: IncomeType; 
-  dueDate: string; 
-  description: string;
-  
+
+
+function extractIncomeRows(raw: unknown): Record<string, unknown>[] {
+  const nested = parseLedgerSourceList(raw);
+  if (nested.length > 0) return nested;
+  return parseListResponse<Record<string, unknown>>(raw);
 }
 
+function pickString(row: Record<string, unknown>, keys: string[]): string {
+  for (const k of keys) {
+    const v = row[k];
+    if (v === undefined || v === null) continue;
+    const s = String(v).trim();
+    if (s !== "" && s !== "null") return s;
+  }
+  return "";
+}
 
-interface ApiResidentUnit {
-  id: string;
-  unit: string;
+/** YYYY-MM do vencimento (evita desvios de fuso com strings só-data). */
+function yearMonthFromDateField(raw: string): { y: string; m: string } | null {
+  const trimmed = raw.trim();
+  const isoDay = /^(\d{4})-(\d{2})(?:-\d{2})?/.exec(trimmed);
+  if (isoDay) return { y: isoDay[1], m: isoDay[2] };
+  const t = new Date(trimmed).getTime();
+  if (Number.isNaN(t)) return null;
+  const d = new Date(t);
+  return {
+    y: String(d.getUTCFullYear()),
+    m: String(d.getUTCMonth() + 1).padStart(2, "0"),
+  };
+}
+
+function normalizeIncomeRow(
+  row: Record<string, unknown>,
+  typesById: Map<string, IncomeType>,
+): Income | null {
+  const id = pickString(row, ["id"]);
+  if (!id) return null;
+  const residentUnitId = pickString(row, ["residentUnitId", "resident_unit_id"]);
+  const amountRaw = row.amount;
+  const amount =
+    typeof amountRaw === "number" && Number.isFinite(amountRaw)
+      ? amountRaw
+      : Number(amountRaw);
+  if (!Number.isFinite(amount)) return null;
+
+  const dueDate = pickString(row, ["dueDate", "due_date"]);
+  const paidAtRaw = pickString(row, ["paidAt", "paid_at"]);
+  const paidAt = paidAtRaw || null;
+  const description = pickString(row, ["description", "memo"]) || "";
+
+  const nestedType = row.type;
+  let type: IncomeType;
+  if (
+    nestedType &&
+    typeof nestedType === "object" &&
+    nestedType !== null &&
+    "id" in (nestedType as object)
+  ) {
+    const t = nestedType as Record<string, unknown>;
+    type = {
+      id: pickString(t, ["id"]) || "unknown",
+      name: pickString(t, ["name"]) || "Não especificado",
+      code: pickString(t, ["code"]) || "",
+      description: pickString(t, ["description"]) || "",
+    };
+  } else {
+    const typeId = pickString(row, ["typeId", "type_id"]);
+    const found = typeId ? typesById.get(typeId) : undefined;
+    type =
+      found ?? {
+        id: typeId || "?",
+        name: "Não especificado",
+        code: "",
+        description: "",
+      };
+  }
+
+  return {
+    id,
+    description,
+    amount,
+    dueDate: dueDate || paidAtRaw || "",
+    paidAt,
+    createdAt: pickString(row, ["createdAt", "created_at"]) || undefined,
+    residentUnitId,
+    type,
+  };
+}
+
+function sortIncomesByDueDateAsc(list: Income[]): Income[] {
+  return [...list].sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+}
+
+function formatMoneyPtBrCents(amountCents: number): string {
+  return (amountCents / 100).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
 }
 
 const monthNamesPt = [
@@ -98,9 +191,11 @@ const buildPeriodOptions = (count: number): string[] => {
 };
 
 const Incomes: React.FC = () => {
+  const [yieldIngressosExpanded, setYieldIngressosExpanded] = useState(false);
+
   const [residentUnits, setResidentUnits] = useState<ResidentUnit[]>([]);
   const [incomeTypes, setIncomeTypes] = useState<IncomeType[]>(() => readCachedIncomeTypes<IncomeType>());
-  const [incomes, setIncomes] = useState<Income[]>([]);
+  const [rawIncomeRows, setRawIncomeRows] = useState<Record<string, unknown>[]>([]);
 
   const [loadingIncomes, setLoadingIncomes] = useState(true);
   const [incomesError, setIncomesError] = useState<string | null>(null);
@@ -119,8 +214,8 @@ const Incomes: React.FC = () => {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!unitsResponse.ok) throw new Error('Falha ao carregar unidades residenciais.');
-        const unitsData: ApiResidentUnit[] = await unitsResponse.json();
-        setResidentUnits(unitsData);
+        const unitsRaw: unknown = await unitsResponse.json();
+        setResidentUnits(parseListResponse<ResidentUnit>(unitsRaw));
 
         const incTypesResponse = await fetch(API_INCOME_TYPES, {
           headers: { Authorization: `Bearer ${token}` },
@@ -146,6 +241,22 @@ const Incomes: React.FC = () => {
     fetchInitialData();
   }, []);
 
+  const incomeTypesById = useMemo(() => {
+    const m = new Map<string, IncomeType>();
+    for (const t of incomeTypes) {
+      m.set(t.id, t);
+    }
+    return m;
+  }, [incomeTypes]);
+
+  const incomes = useMemo(
+    () =>
+      rawIncomeRows
+        .map((r) => normalizeIncomeRow(r, incomeTypesById))
+        .filter((x): x is Income => x !== null),
+    [rawIncomeRows, incomeTypesById],
+  );
+
   const fetchIncomes = useCallback(async () => {
     setLoadingIncomes(true);
     setIncomesError(null);
@@ -164,23 +275,15 @@ const Incomes: React.FC = () => {
 
       if (!response.ok) {
         if (response.status === 404) {
-             setIncomes([]);
-             console.warn("Endpoint para buscar ingressos no encontrado (404). Mostrando lista vacía.");
-             return;
+          setRawIncomeRows([]);
+          console.warn("Endpoint para buscar ingressos no encontrado (404). Mostrando lista vacía.");
+          return;
         }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data: ApiIncome[] = await response.json();
-
-      
-      const formattedIncomes: Income[] = data.map(inc => ({
-        ...inc,
-        
-        
-      }));
-
-      setIncomes(formattedIncomes);
+      const raw = await response.json();
+      setRawIncomeRows(extractIncomeRows(raw));
     } catch (err: any) {
       setIncomesError('Falha ao carregar os ingressos.');
       console.error("Failed to fetch incomes:", err);
@@ -199,67 +302,101 @@ const Incomes: React.FC = () => {
     const [year, month] = selectedPeriod.split("-");
     if (!year || !month) return incomes;
     return incomes.filter((income) => {
-      const date = new Date(income.dueDate);
-      if (Number.isNaN(date.getTime())) return false;
-      const incomeMonth = String(date.getUTCMonth() + 1).padStart(2, "0");
-      const incomeYear = String(date.getUTCFullYear());
-      return incomeYear === year && incomeMonth === month;
+      const ym =
+        yearMonthFromDateField(income.dueDate) ??
+        (income.paidAt ? yearMonthFromDateField(income.paidAt) : null);
+      if (!ym) return false;
+      return ym.y === year && ym.m === month;
     });
   }, [incomes, selectedPeriod]);
 
-  const columns: ColumnDef<Income>[] = [
-    {
-      key: 'type',
-      header: 'Tipo',
-      className: 'w-1/4',
-      cell: (income) => (
-        <span className="font-medium text-gray-800 text-theme-sm dark:text-white/90">{income.type?.name || 'Não especificado'}</span>
-      ),
-    },
-    {
-      key: 'amount',
-      header: 'Monto',
-      className: 'w-40 text-right',
-      cell: (income) => (
-        <span className="text-gray-800 text-theme-sm dark:text-white/90">
-          {(income.amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-        </span>
-      ),
-    },
-    {
-      key: 'dueDate',
-      header: 'Vencimento',
-      className: 'w-32',
-      cell: (income) => (
-        <span className="text-gray-500 text-theme-sm dark:text-gray-400">
-          {formatDateDMY(income.dueDate)}
-        </span>
-      ),
-    },
-    {
-      key: 'residentUnit',
-      header: 'Unidade',
-      className: 'w-40',
-      cell: (income) => {
-        const unit = residentUnits.find(u => u.id === income.residentUnitId);
-        return (
-          <span className="text-gray-500 text-theme-sm dark:text-gray-400">
-            {unit ? unit.unit : 'Geral'}
+  useEffect(() => {
+    setYieldIngressosExpanded(false);
+  }, [selectedPeriod]);
+
+  const { yieldBundleRows, singlesRows } = useMemo(() => {
+    const bundle: Income[] = [];
+    const singles: Income[] = [];
+    for (const inc of filteredIncomes) {
+      if (isBankYieldBundleMemo(inc.description)) bundle.push(inc);
+      else singles.push(inc);
+    }
+    return {
+      yieldBundleRows: sortIncomesByDueDateAsc(bundle),
+      singlesRows: sortIncomesByDueDateAsc(singles),
+    };
+  }, [filteredIncomes]);
+
+  const unitDisplay = (inc: Income): string => {
+    const unit = residentUnits.find((u) => u.id === inc.residentUnitId);
+    return unit ? unit.unit : "Geral";
+  };
+
+  const renderIncomeDataRow = (inc: Income, opts?: { detail?: boolean }) => {
+    const detail = opts?.detail ?? false;
+    return (
+      <TableRow
+        key={inc.id}
+        className={
+          detail
+            ? "border-l-4 border-brand-200/80 bg-gray-50/90 text-theme-sm dark:border-brand-800 dark:bg-gray-900/45"
+            : undefined
+        }
+      >
+        <TableCell
+          className={`w-[26%] min-w-[11rem] px-5 py-4 pr-8 text-theme-sm sm:px-6 ${detail ? "pl-10" : ""}`}
+        >
+          <span className="font-medium text-gray-800 dark:text-white/90">
+            {inc.type?.name || "Não especificado"}
           </span>
-        );
-      },
-    },
-    {
-      key: 'description',
-      header: 'Descrição',
-      className: 'w-1/3',
-      cell: (income) => (
-        <span className="text-gray-500 text-theme-sm dark:text-gray-400">
-          {income.description}
-        </span>
+        </TableCell>
+        <TableCell className="w-[11%] min-w-[6.5rem] whitespace-nowrap px-3 py-4 text-right text-theme-sm text-gray-800 dark:text-white/90">
+          {formatMoneyPtBrCents(inc.amount)}
+        </TableCell>
+        <TableCell className="w-[13%] min-w-[7rem] px-4 py-4 text-theme-sm text-gray-500 sm:px-5 dark:text-gray-400">
+          {unitDisplay(inc)}
+        </TableCell>
+        <TableCell className="min-w-[18rem] w-[50%] max-w-none pl-6 pr-5 py-4 text-theme-sm text-gray-700 sm:pr-6 dark:text-gray-300">
+          <span className={detail ? "line-clamp-3" : undefined} title={inc.description}>
+            {inc.description}
+          </span>
+          <span className="mt-0.5 block text-[11px] leading-tight text-gray-400 tabular-nums dark:text-gray-500">
+            Venc. {formatDateDMY(inc.dueDate)}
+          </span>
+        </TableCell>
+      </TableRow>
+    );
+  };
+
+  const yieldBundleTotalCents =
+    yieldBundleRows.length > 0
+      ? yieldBundleRows.reduce((sum, r) => sum + r.amount, 0)
+      : 0;
+  const yieldDueLabel =
+    yieldBundleRows.length === 0
+      ? ""
+      : (() => {
+          const a = yieldBundleRows[0]!;
+          const b = yieldBundleRows[yieldBundleRows.length - 1]!;
+          const da = formatDateDMY(a.dueDate);
+          const db = formatDateDMY(b.dueDate);
+          return da === db ? da : `${da} — ${db}`;
+        })();
+  const yieldBundleDescText = (() => {
+    if (yieldBundleRows.length === 0) return "";
+    const uniq = [
+      ...new Set(
+        yieldBundleRows.map((r) => r.description.trim()).filter(Boolean),
       ),
-    },
-  ];
+    ];
+    if (uniq.length === 1) return uniq[0]!;
+    if (uniq.length === 0) return "Rendimentos agrupados.";
+    return uniq.slice(0, 2).join(" · ") + (uniq.length > 2 ? "…" : "");
+  })();
+
+  const yieldUnitsUniq = [...new Set(yieldBundleRows.map(unitDisplay))];
+  const yieldUnitLabel =
+    yieldUnitsUniq.length === 0 ? "—" : yieldUnitsUniq.length === 1 ? yieldUnitsUniq[0]! : "várias";
 
   return (
     <>
@@ -300,9 +437,105 @@ const Incomes: React.FC = () => {
           ) : incomesError ? (
             <p className="text-center text-error-500">{incomesError}</p>
           ) : filteredIncomes.length === 0 ? (
-            <p className="text-center text-gray-500 dark:text-gray-400">Nenhum ingresso registrado no período selecionado.</p>
+            <p className="text-center text-gray-500 dark:text-gray-400">
+              {incomes.length > 0 ? (
+                <>
+                  Não há ingressos com vencimento em{" "}
+                  <strong>{formatPeriodLabel(selectedPeriod)}</strong>. Na API existem{" "}
+                  <strong>{incomes.length}</strong> ingresso(s) noutros períodos — altere o filtro
+                  «Mês/Ano» (ex.: data de <code className="rounded bg-gray-100 px-1 dark:bg-gray-800">due_date</code> na base).
+                </>
+              ) : (
+                "Nenhum ingresso registrado no período selecionado."
+              )}
+            </p>
           ) : (
-            <DataTable columns={columns} data={filteredIncomes} />
+            <div className="rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+              <div className="w-full overflow-x-auto">
+                <Table className="w-full min-w-[720px] table-fixed border-collapse">
+                  <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
+                    <TableRow>
+                      <TableCell
+                        isHeader
+                        className="w-[26%] min-w-[11rem] px-5 py-3 pr-8 text-left font-medium text-theme-xs text-gray-500 dark:text-gray-400"
+                      >
+                        Tipo
+                      </TableCell>
+                      <TableCell
+                        isHeader
+                        className="w-[11%] min-w-[6.5rem] px-3 py-3 text-right font-medium text-theme-xs text-gray-500 dark:text-gray-400"
+                      >
+                        Monto
+                      </TableCell>
+                      <TableCell
+                        isHeader
+                        className="w-[13%] min-w-[7rem] px-4 py-3 text-left font-medium text-theme-xs text-gray-500 sm:px-5 dark:text-gray-400"
+                      >
+                        Unidade
+                      </TableCell>
+                      <TableCell
+                        isHeader
+                        className="min-w-[18rem] w-[50%] pl-6 pr-5 py-3 text-left font-medium text-theme-xs text-gray-500 sm:pr-6 dark:text-gray-400"
+                      >
+                        Descrição
+                      </TableCell>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+                    {yieldBundleRows.length > 0 ? (
+                      <>
+                        <TableRow className="bg-brand-50/35 dark:bg-brand-950/20">
+                          <TableCell className="w-[26%] min-w-[11rem] px-5 py-4 pr-8 text-theme-sm sm:px-6">
+                            <div className="flex flex-wrap items-start gap-2">
+                              <button
+                                type="button"
+                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-gray-300 bg-white text-sm font-semibold text-gray-800 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200"
+                                onClick={() => setYieldIngressosExpanded((v) => !v)}
+                                aria-expanded={yieldIngressosExpanded}
+                                aria-label={
+                                  yieldIngressosExpanded
+                                    ? "Ocultar cada lançamento de rendimento"
+                                    : "Ver cada lançamento de rendimento"
+                                }
+                              >
+                                {yieldIngressosExpanded ? "−" : "+"}
+                              </button>
+                              <div className="min-w-0">
+                                <span className="font-medium text-gray-800 dark:text-white/90">
+                                  {yieldBundleRows[0]!.type?.name || "Rendimentos financeiros"}
+                                </span>
+                                <span className="ml-1.5 font-normal text-gray-500 dark:text-gray-400">
+                                  ({yieldBundleRows.length}{" "}
+                                  {yieldBundleRows.length === 1 ? "lançamento" : "lançamentos"})
+                                </span>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="w-[11%] min-w-[6.5rem] whitespace-nowrap px-3 py-4 text-right text-theme-sm font-medium text-gray-800 dark:text-white/90">
+                            {formatMoneyPtBrCents(yieldBundleTotalCents)}
+                          </TableCell>
+                          <TableCell className="w-[13%] min-w-[7rem] px-4 py-4 text-theme-sm text-gray-500 sm:px-5 dark:text-gray-400">
+                            {yieldUnitLabel}
+                          </TableCell>
+                          <TableCell className="min-w-[18rem] w-[50%] pl-6 pr-5 py-4 text-theme-sm text-gray-700 sm:pr-6 dark:text-gray-300">
+                            <span className="leading-snug">{yieldBundleDescText}</span>
+                            <span className="mt-0.5 block text-[11px] leading-tight text-gray-400 tabular-nums dark:text-gray-500">
+                              Venc. {yieldDueLabel}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                        {yieldIngressosExpanded
+                          ? yieldBundleRows.map((inc) =>
+                              renderIncomeDataRow(inc, { detail: true }),
+                            )
+                          : null}
+                      </>
+                    ) : null}
+                    {singlesRows.map((inc) => renderIncomeDataRow(inc))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
           )}
         </ComponentCard>
 

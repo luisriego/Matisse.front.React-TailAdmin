@@ -19,6 +19,19 @@ export function rowPickString(row: Record<string, unknown>, keys: string[]): str
   return "";
 }
 
+/**
+ * Identificador único da linha no preview: OFX costuma expor FITID; a API também pode usar importLineKey.
+ */
+export function resolveIngestLineId(row: Record<string, unknown>): string {
+  return rowPickString(row, [
+    "fitId",
+    "fit_id",
+    "FITID",
+    "importLineKey",
+    "import_line_key",
+  ]);
+}
+
 export function firstObjectInRowArray(
   row: Record<string, unknown>,
   keys: string[]
@@ -101,7 +114,7 @@ function gatherIngestRows(data: OfxIngestResponse): {
   const creditRows: Record<string, unknown>[] = [];
 
   const pushRow = (row: Record<string, unknown>, forceCredit: boolean) => {
-    const fitId = String(row.fitId ?? "").trim();
+    const fitId = resolveIngestLineId(row);
     if (!fitId) return;
     if (seenFit.has(fitId)) return;
     seenFit.add(fitId);
@@ -159,13 +172,20 @@ function resolveAccountIdFromPreview(row: Record<string, unknown>): string {
   return "";
 }
 
+function rowBankAccountId(row: Record<string, unknown> | undefined): string {
+  if (!row) return "";
+  return rowPickString(row, ["bankAccountId", "bank_account_id"]);
+}
+
 export function rowToExpenseDraft(row: Record<string, unknown>): DraftLine | null {
-  const fitId = String(row.fitId ?? "").trim();
-  const bankAccountId = String(row.bankAccountId ?? "").trim();
-  const amountInCents = Number(row.amountInCents ?? 0);
+  const fitId = resolveIngestLineId(row);
+  const bankAccountId = rowBankAccountId(row);
+  const amountRaw = rowPickNumber(row, ["amountInCents", "amount_in_cents"]);
+  const amountInCents =
+    amountRaw !== undefined ? amountRaw : Number(row.amountInCents ?? NaN);
   if (!fitId || !bankAccountId || !Number.isFinite(amountInCents)) return null;
-  const postedAt = String(row.postedAt ?? "");
-  const memo = String(row.memo ?? "");
+  const postedAt = rowPickString(row, ["postedAt", "posted_at"]);
+  const memo = String(row.memo ?? row.description ?? "");
   const expenseTypeId = resolveExpenseTypeIdFromPreview(row);
   const accountId = resolveAccountIdFromPreview(row);
   const needsHumanReview = isNeedsReviewRow(row);
@@ -243,16 +263,18 @@ export function rowToCreditDraft(
   row: Record<string, unknown>,
   fallbackBankAccountId: string
 ): CreditDraftLine | null {
-  const fitId = String(row.fitId ?? "").trim();
-  let bankAccountId = String(row.bankAccountId ?? "").trim();
+  const fitId = resolveIngestLineId(row);
+  let bankAccountId = rowBankAccountId(row);
   if (!bankAccountId && fallbackBankAccountId) {
     bankAccountId = fallbackBankAccountId;
   }
-  let amountInCents = Number(row.amountInCents ?? 0);
+  const amtRaw = rowPickNumber(row, ["amountInCents", "amount_in_cents"]);
+  let amountInCents =
+    amtRaw !== undefined ? amtRaw : Number(row.amountInCents ?? NaN);
   if (!Number.isFinite(amountInCents)) return null;
   amountInCents = Math.abs(amountInCents);
-  const postedAt = String(row.postedAt ?? "");
-  const memo = String(row.memo ?? "");
+  const postedAt = rowPickString(row, ["postedAt", "posted_at"]);
+  const memo = String(row.memo ?? row.description ?? "");
   if (!fitId || !bankAccountId) return null;
   const creditKind = parseCreditKindFromRow(row);
   const incomeTypeId = resolveIncomeTypeIdFromPreview(row);
@@ -301,9 +323,7 @@ export function buildPreviewDrafts(data: OfxIngestResponse): {
 } {
   const { debitRows, creditRows } = gatherIngestRows(data);
   const fallbackBank =
-    String(debitRows[0]?.bankAccountId ?? "").trim() ||
-    String(creditRows[0]?.bankAccountId ?? "").trim() ||
-    "";
+    rowBankAccountId(debitRows[0]) || rowBankAccountId(creditRows[0]);
 
   const expenseDrafts = debitRows
     .map((r) => rowToExpenseDraft(r))

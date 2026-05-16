@@ -6,6 +6,7 @@ import ProtectedRoute from "../components/auth/ProtectedRoute";
 import { server } from "./mocks/server";
 import { jwtFromPayload } from "./mocks/mockJwt";
 import { clearSetupUnitBypass } from "../utils/jwtResidentialUnit";
+import { LOCAL_BUSINESS_SETUP_COMPLETE_KEY } from "../utils/setupApi";
 
 const validToken = jwtFromPayload({ exp: 4102444800, id: "u1", sub: "u1" });
 
@@ -50,6 +51,7 @@ describe("ProtectedRoute", () => {
     await waitFor(() => {
       expect(screen.getByText("Conteúdo protegido")).toBeInTheDocument();
     });
+    expect(localStorage.getItem(LOCAL_BUSINESS_SETUP_COMPLETE_KEY)).toBe("1");
   });
 
   it("permite entrada mesmo quando complete=false (without modal onboarding)", async () => {

@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { clearSetupUnitBypass } from "./utils/jwtResidentialUnit";
 import {
+  clearLocalBusinessSetupComplete,
   isSetupApiWhitelistPath,
   pathnameFromFetchInput,
   tryHandle403SetupRequired,
@@ -33,6 +34,7 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   if (response.status === 401) {
     localStorage.removeItem("token");
     clearSetupUnitBypass();
+    clearLocalBusinessSetupComplete();
     window.location.href = "/signin";
   }
   return response;

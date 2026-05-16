@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Modal } from "../ui/modal";
 import { API_INCOME_TYPES, parseListResponse } from "../../utils/catalogCache";
 import {
@@ -17,6 +17,8 @@ import {
 } from "../../utils/ofxMatchingContext";
 import { LAST_IMPORTED_STATEMENT_PERIOD_KEY } from "../../utils/defaultAccountingMonth";
 import DatePicker from "../form/date-picker";
+import { hasLocalBusinessSetupComplete } from "../../utils/setupApi";
+import { partitionCreditsForBundleView } from "../../utils/ofxBankYieldMemo";
 
 const OFX_INGEST_PATH = "/api/v1/bank/ofx-ingest";
 const OFX_CONFIRM_PATH = "/api/v1/bank/ofx-confirm";
@@ -122,7 +124,40 @@ function readOfxConfirmSettlementMeta(body: Record<string, unknown> | null): {
   return { expectedSlipTotalCents, validatedAgainstSlips, settlementMonth };
 }
 
+function unwrapApiEnvelope(raw: unknown): unknown {
+  let cur: unknown = raw;
+  for (let depth = 0; depth < 3; depth++) {
+    if (
+      cur &&
+      typeof cur === "object" &&
+      "data" in (cur as object) &&
+      (cur as { data: unknown }).data !== undefined
+    ) {
+      cur = (cur as { data: unknown }).data;
+      continue;
+    }
+    break;
+  }
+  return cur;
+}
+
 function formatImportError(status: number, rawBody: string, apiDetail?: string): string {
+  const haySetup =
+    status === 403 && /\bSETUP_REQUIRED\b/i.test(`${apiDetail ?? ""} ${rawBody}`);
+  if (haySetup) {
+    if (hasLocalBusinessSetupComplete()) {
+      return (
+        "La importación fue rechazada por el servidor (SETUP_REQUIRED). En este dispositivo el alta del condominio ya consta como completada; " +
+        "si persiste el error, es incoherencia en la API y debe corregirse en backend."
+      );
+    }
+    return (
+      "El servidor bloquea la importación porque la configuración inicial del condominio aparece incompleta (SETUP_REQUIRED). " +
+      "Eso debe corregirse en backend: bien habilitando POST /api/v1/bank/ofx-ingest para tu sesión cuando el edificio ya está configurado, " +
+      "bien devolviendo complete: true en GET /api/v1/setup/status si el alta ya se completó."
+    );
+  }
+
   const combined = `${apiDetail ?? ""} ${rawBody}`.toLowerCase();
   const routeMissing =
     status === 404 ||
@@ -276,6 +311,8 @@ const BankStatementImportModal: React.FC<BankStatementImportModalProps> = ({
   onClose,
   onSuccess,
 }) => {
+  const [yieldBundleExpanded, setYieldBundleExpanded] = useState(false);
+
   const [step, setStep] = useState<"upload" | "review">("upload");
   const [file, setFile] = useState<File | null>(null);
   const [expenseDrafts, setExpenseDrafts] = useState<DraftLine[]>([]);
@@ -306,6 +343,7 @@ const BankStatementImportModal: React.FC<BankStatementImportModalProps> = ({
     setLoadingIngest(false);
     setLoadingConfirm(false);
     setMatchingContext(null);
+    setYieldBundleExpanded(false);
   }, []);
 
   useEffect(() => {
@@ -375,29 +413,41 @@ const BankStatementImportModal: React.FC<BankStatementImportModalProps> = ({
       });
 
       const text = await res.text();
-      let payload: { error?: string; message?: string } & OfxIngestResponse | null = null;
+      let parsedRoot: unknown = null;
       if (text.trim()) {
         try {
-          payload = JSON.parse(text) as { error?: string; message?: string } & OfxIngestResponse;
+          parsedRoot = JSON.parse(text);
         } catch {
           
         }
       }
+      const inner = unwrapApiEnvelope(parsedRoot) as
+        | ({ error?: string; message?: string } & OfxIngestResponse)
+        | null;
 
       if (!res.ok) {
+        const errStr =
+          inner && typeof inner === "object" && typeof inner.error === "string"
+            ? inner.error
+            : undefined;
+        const msgStr =
+          inner && typeof inner === "object" && typeof inner.message === "string"
+            ? inner.message
+            : undefined;
         const detail =
-          payload?.error ||
-          ("message" in (payload ?? {}) ? (payload as { message?: string }).message : undefined);
+          errStr === "SETUP_REQUIRED" && msgStr?.trim()
+            ? msgStr.trim()
+            : errStr || msgStr;
         throw new Error(formatImportError(res.status, text, detail));
       }
 
-      const data = payload as OfxIngestResponse;
+      const data = (inner ?? parsedRoot) as OfxIngestResponse;
       const { expenseDrafts: nextExpenseDrafts, creditDrafts: nextCreditDrafts } =
         buildPreviewDrafts(data);
 
       if (nextExpenseDrafts.length === 0 && nextCreditDrafts.length === 0) {
         setInfo(
-          "Pré-visualização recebida, mas não há movimentos reconhecidos (débitos nem créditos) com os campos esperados (ex.: fitId, conta, valores)."
+          "Pré-visualização recebida, mas não há movimentos reconhecidos (débitos nem créditos) com os campos esperados (ex.: fitId ou importLineKey, conta bancária interna e valores)."
         );
         return;
       }
@@ -498,6 +548,27 @@ const BankStatementImportModal: React.FC<BankStatementImportModalProps> = ({
       return copy;
     });
   };
+
+  const updateCreditDraftBundle = (indices: number[], patch: Partial<CreditDraftLine>) => {
+    setCreditDrafts((prev) => {
+      const copy = [...prev];
+      for (const i of indices) {
+        if (copy[i]) copy[i] = { ...copy[i], ...patch };
+      }
+      return copy;
+    });
+  };
+
+  const creditTableRows = useMemo(() => {
+    const { bundleIndices, singleIndices } = partitionCreditsForBundleView(creditDrafts);
+    const rows: Array<
+      | { kind: "bundle"; indices: number[] }
+      | { kind: "single"; index: number }
+    > = [];
+    if (bundleIndices.length > 0) rows.push({ kind: "bundle", indices: bundleIndices });
+    singleIndices.forEach((i) => rows.push({ kind: "single", index: i }));
+    return rows;
+  }, [creditDrafts]);
 
   const expenseBlockReady =
     expenseDrafts.length === 0 ||
@@ -618,14 +689,19 @@ const BankStatementImportModal: React.FC<BankStatementImportModalProps> = ({
       });
 
       const text = await res.text();
-      let body: Record<string, unknown> | null = null;
+      let parsedRoot: unknown = null;
       if (text.trim()) {
         try {
-          body = JSON.parse(text) as Record<string, unknown>;
+          parsedRoot = JSON.parse(text);
         } catch {
           
         }
       }
+      const bodyRaw = unwrapApiEnvelope(parsedRoot);
+      const body =
+        bodyRaw && typeof bodyRaw === "object"
+          ? (bodyRaw as Record<string, unknown>)
+          : null;
 
       if (!res.ok) {
         if (res.status === 422 && body && typeof body === "object") {
@@ -636,12 +712,12 @@ const BankStatementImportModal: React.FC<BankStatementImportModalProps> = ({
           setError(summarizeOfx422ForUser(raw, matchingContext));
           setErrorDetails(detail || text);
         } else {
+          const errStr = typeof body?.error === "string" ? body.error : undefined;
+          const msgStr = typeof body?.message === "string" ? body.message : undefined;
           const errMsg =
-            typeof body?.error === "string"
-              ? body.error
-              : typeof body?.message === "string"
-                ? body.message
-                : undefined;
+            errStr === "SETUP_REQUIRED" && msgStr?.trim()
+              ? msgStr.trim()
+              : errStr || msgStr;
           throw new Error(formatImportError(res.status, text, errMsg));
         }
         return;
@@ -705,6 +781,7 @@ const BankStatementImportModal: React.FC<BankStatementImportModalProps> = ({
     setError(null);
     setErrorDetails(null);
     setInfo(null);
+    setYieldBundleExpanded(false);
   };
 
   const modalTitle =
@@ -954,6 +1031,11 @@ const BankStatementImportModal: React.FC<BankStatementImportModalProps> = ({
           {!catalogLoading && creditDrafts.length > 0 && (
             <div className="space-y-2">
               <h4 className="text-sm font-semibold text-gray-800 dark:text-white/90">Créditos (ingressos)</h4>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Memos de rendimento / aplicação automática são mostrados num único grupo com{" "}
+                <span className="font-mono">+</span> para expandir. A gravação continua a enviar{" "}
+                <strong>uma linha por movimento</strong> ao servidor.
+              </p>
               <div className="max-h-[min(40vh,20rem)] overflow-auto rounded-lg border border-gray-200 dark:border-gray-700">
                 <table className="min-w-full divide-y divide-gray-200 text-left text-xs dark:divide-gray-700">
                   <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800/90">
@@ -968,7 +1050,11 @@ const BankStatementImportModal: React.FC<BankStatementImportModalProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {creditDrafts.map((c, i) => (
+                    {creditTableRows.map((row) => {
+                      if (row.kind === "single") {
+                        const i = row.index;
+                        const c = creditDrafts[i]!;
+                        return (
                       <tr key={c.fitId} className="align-top">
                         <td className="px-2 py-2 text-gray-800 dark:text-white/90">
                           <div className="flex flex-wrap items-start gap-1">
@@ -1001,7 +1087,7 @@ const BankStatementImportModal: React.FC<BankStatementImportModalProps> = ({
                           {formatYearMonthLabel(toYearMonth(c.postedAt))}
                         </td>
                         <td className="whitespace-nowrap px-2 py-2 text-gray-600 dark:text-gray-400">
-                          {formatYearMonthLabel(c.settlementMonth)}
+                          {formatYearMonthLabel(c.settlementMonth.slice(0, 7))}
                         </td>
                         <td className="px-1 py-1">
                           <select
@@ -1042,7 +1128,171 @@ const BankStatementImportModal: React.FC<BankStatementImportModalProps> = ({
                           </select>
                         </td>
                       </tr>
-                    ))}
+                        );
+                      }
+                      const indices = row.indices;
+                      const lines = indices.map((idx) => creditDrafts[idx]!);
+                      const totalCents = lines.reduce((acc, l) => acc + l.amountInCents, 0);
+                      const rep = lines[0]!;
+                      const anyReview = lines.some((l) => l.needsHumanReview);
+                      const datesSorted = [...new Set(lines.map((l) => l.postedAt))].sort();
+                      const dateSpan =
+                        datesSorted.length === 0
+                          ? "—"
+                          : datesSorted.length === 1
+                            ? datesSorted[0]!
+                            : `${datesSorted[0]} — ${datesSorted[datesSorted.length - 1]!}`;
+                      const ymFromPosted = [
+                        ...new Set(
+                          lines
+                            .map((l) => toYearMonth(l.postedAt))
+                            .filter((v): v is string => Boolean(v)),
+                        ),
+                      ];
+                      const bankMonthSummary =
+                        ymFromPosted.length === 0
+                          ? "—"
+                          : ymFromPosted.length === 1
+                            ? formatYearMonthLabel(ymFromPosted[0]!)
+                            : "vários meses";
+                      const setM = [
+                        ...new Set(
+                          lines
+                            .map((l) => l.settlementMonth)
+                            .filter((s) => s && /^\d{4}-\d{2}/.test(s))
+                            .map((s) => s!.slice(0, 7)),
+                        ),
+                      ];
+                      const concSummary =
+                        setM.length === 0
+                          ? "—"
+                          : setM.length === 1
+                            ? formatYearMonthLabel(setM[0]!)
+                            : "vários";
+
+                      return (
+                        <React.Fragment key={`bundle-${indices.join("-")}`}>
+                          <tr className="align-top bg-brand-50/30 dark:bg-brand-950/15">
+                            <td className="px-2 py-2 text-gray-800 dark:text-white/90">
+                              <div className="flex flex-wrap items-start gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setYieldBundleExpanded((v) => !v)}
+                                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border border-gray-300 bg-white text-sm font-semibold leading-none text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200"
+                                  aria-expanded={yieldBundleExpanded}
+                                  title={
+                                    yieldBundleExpanded
+                                      ? "Ocultar linhas individuais"
+                                      : "Ver cada lançamento do extrato"
+                                  }
+                                >
+                                  {yieldBundleExpanded ? "−" : "+"}
+                                </button>
+                                <div className="min-w-0 flex-1">
+                                  <div className="font-medium">
+                                    Rendimentos e aplicação automática
+                                    <span className="ml-1.5 font-normal text-gray-500 dark:text-gray-400">
+                                      ({lines.length}{" "}
+                                      {lines.length === 1 ? "lançamento" : "lançamentos"})
+                                    </span>
+                                  </div>
+                                  {anyReview ? (
+                                    <span className="mt-1 inline-block rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-900 dark:bg-amber-500/20 dark:text-amber-200">
+                                      Revisar
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="whitespace-nowrap px-2 py-2 text-gray-800 dark:text-white/90">
+                              {(totalCents / 100).toLocaleString("pt-BR", {
+                                style: "currency",
+                                currency: "BRL",
+                              })}
+                            </td>
+                            <td className="whitespace-nowrap px-2 py-2 text-gray-600 dark:text-gray-400">
+                              {dateSpan}
+                            </td>
+                            <td className="whitespace-nowrap px-2 py-2 text-gray-600 dark:text-gray-400">
+                              {bankMonthSummary}
+                            </td>
+                            <td className="whitespace-nowrap px-2 py-2 text-gray-600 dark:text-gray-400">
+                              {concSummary}
+                            </td>
+                            <td className="px-1 py-1">
+                              <select
+                                value={rep.creditKind}
+                                onChange={(e) => {
+                                  const v = e.target.value as CreditKind;
+                                  if (v === "boleto_settlement") {
+                                    updateCreditDraftBundle(indices, { creditKind: v });
+                                    return;
+                                  }
+                                  const guessed =
+                                    !rep.incomeTypeId.trim() && incomeTypes.length > 0
+                                      ? guessIncomeTypeIdFromMemo(rep.memo, incomeTypes)
+                                      : "";
+                                  updateCreditDraftBundle(indices, {
+                                    creditKind: v,
+                                    incomeTypeId: guessed || rep.incomeTypeId,
+                                  });
+                                }}
+                                className="h-9 max-w-[11rem] rounded-lg border border-gray-300 bg-white px-1 text-xs dark:border-gray-600 dark:bg-gray-900"
+                              >
+                                <option value="boleto_settlement">Liquidação de boletos</option>
+                                <option value="other">Outro (juros/rendimentos/estorno)</option>
+                              </select>
+                            </td>
+                            <td className="px-1 py-1">
+                              <select
+                                value={rep.incomeTypeId}
+                                onChange={(e) =>
+                                  updateCreditDraftBundle(indices, {
+                                    incomeTypeId: e.target.value,
+                                  })
+                                }
+                                className="h-9 w-36 max-w-[10rem] rounded-lg border border-gray-300 bg-white px-1 text-xs dark:border-gray-600 dark:bg-gray-900"
+                              >
+                                <option value="">— tipo —</option>
+                                {sortCatalogByName(incomeTypes).map((t) => (
+                                  <option key={t.id} value={t.id}>
+                                    {t.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                          </tr>
+                          {yieldBundleExpanded &&
+                            indices.map((idx) => {
+                              const l = creditDrafts[idx]!;
+                              return (
+                                <tr
+                                  key={`yield-d-${l.fitId}`}
+                                  className="border-l-4 border-brand-200/80 bg-gray-50/90 text-[11px] dark:border-brand-700 dark:bg-gray-900/50"
+                                >
+                                  <td className="px-2 py-1.5 pl-10 text-gray-700 dark:text-gray-300">
+                                    <span className="line-clamp-3" title={l.memo}>
+                                      {l.memo}
+                                    </span>
+                                  </td>
+                                  <td className="whitespace-nowrap px-2 py-1.5 text-gray-800 dark:text-white/80">
+                                    {(l.amountInCents / 100).toLocaleString("pt-BR", {
+                                      style: "currency",
+                                      currency: "BRL",
+                                    })}
+                                  </td>
+                                  <td className="whitespace-nowrap px-2 py-1.5 text-gray-600 dark:text-gray-400">
+                                    {l.postedAt}
+                                  </td>
+                                  <td colSpan={4} className="px-2 py-1.5 text-gray-400 dark:text-gray-500">
+                                    Linha do extrato (classificação comum ao grupo)
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                        </React.Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

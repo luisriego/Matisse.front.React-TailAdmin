@@ -5,6 +5,7 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { clearSetupUnitBypass } from "../../utils/jwtResidentialUnit";
 import {
   SetupStatusFetchError,
+  applyBusinessSetupCompleteFromStatus,
   fetchSetupStatus,
 } from "../../utils/setupApi";
 
@@ -25,7 +26,8 @@ const ProtectedRoute = () => {
     async function ping() {
       if (!token) return;
       try {
-        await fetchSetupStatus(token);
+        const status = await fetchSetupStatus(token);
+        applyBusinessSetupCompleteFromStatus(status);
         if (cancelled) return;
         clearSetupUnitBypass();
         setGate("allow");

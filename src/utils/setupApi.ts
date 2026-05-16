@@ -9,6 +9,54 @@ import type {
 
 export const STORAGE_SETUP_REQUIRED_KEY = "setup.setupRequiredEnvelope";
 
+/**
+ * Negocio: una vez el condominio está dado de alta (complete o mes de apertura en estado),
+ * no volver a aplicar bloqueos ni mensajes de «setup pendiente» en el cliente.
+ */
+export const LOCAL_BUSINESS_SETUP_COMPLETE_KEY = "business.condominioSetupCompleto";
+
+export function hasLocalBusinessSetupComplete(): boolean {
+  return localStorage.getItem(LOCAL_BUSINESS_SETUP_COMPLETE_KEY) === "1";
+}
+
+export function clearLocalBusinessSetupComplete(): void {
+  localStorage.removeItem(LOCAL_BUSINESS_SETUP_COMPLETE_KEY);
+}
+
+/** Alta considerada terminada: bandera del servidor o snapshot de mes de apertura. */
+export function shouldMarkBusinessSetupComplete(
+  status: SetupStatusPayload,
+): boolean {
+  if (status.complete === true) return true;
+  const o = status.openingReference;
+  if (o !== null && o !== undefined && typeof o === "object") {
+    const raw = o as Record<string, unknown>;
+    const recAt =
+      typeof raw.recordedAt === "string"
+        ? raw.recordedAt
+        : typeof raw.recorded_at === "string"
+          ? (raw.recorded_at as string)
+          : "";
+    if (recAt.trim() !== "") return true;
+    const rm =
+      typeof raw.referenceMonth === "string"
+        ? raw.referenceMonth
+        : typeof raw.reference_month === "string"
+          ? (raw.reference_month as string)
+          : "";
+    return /^\d{4}-\d{2}$/.test(rm.trim());
+  }
+  return false;
+}
+
+export function applyBusinessSetupCompleteFromStatus(
+  status: SetupStatusPayload,
+): void {
+  if (shouldMarkBusinessSetupComplete(status)) {
+    localStorage.setItem(LOCAL_BUSINESS_SETUP_COMPLETE_KEY, "1");
+  }
+}
+
 /** Error al leer estado de setup — `statusCode` permite tratar 401 aparte */
 export class SetupStatusFetchError extends Error {
   constructor(
@@ -70,6 +118,15 @@ export function isSetupApiWhitelistPath(pathname: string | null): boolean {
   const p = pathname.replace(/\/+$/, "") || pathname;
 
   if (p.startsWith("/api/v1/setup")) return true;
+  if (p.startsWith("/api/v1/bank/")) return true;
+  if (p === "/api/v1/accounts" || p.startsWith("/api/v1/accounts/")) return true;
+  if (
+    p === "/api/v1/expense-types" ||
+    p.startsWith("/api/v1/expense-types/")
+  )
+    return true;
+  if (p === "/api/v1/income-types" || p.startsWith("/api/v1/income-types/"))
+    return true;
   if (p === "/api/v1/login_check") return true;
   if (p.startsWith("/api/v1/users/register")) return true;
   if (p.startsWith("/api/v1/users/activate")) return true;
@@ -128,6 +185,7 @@ export async function tryHandle403SetupRequired(
   response: Response,
 ): Promise<boolean> {
   if (response.status !== 403) return false;
+  if (hasLocalBusinessSetupComplete()) return false;
 
   try {
     const data = unwrapEnvelope<Partial<ApiSetupForbiddenBody>>(

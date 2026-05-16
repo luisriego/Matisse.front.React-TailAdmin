@@ -305,6 +305,35 @@ describe("ofxPreviewDrafts", () => {
     expect(creditDrafts[0]!.bankAccountId).toBe("bank-9");
   });
 
+  it("buildPreviewDrafts: linhas só com importLineKey (sem fitId) aparecem na revisão", () => {
+    const { expenseDrafts, creditDrafts } = buildPreviewDrafts({
+      expenses: [
+        {
+          importLineKey: "imp-exp-1",
+          bankAccountId: "bank-1",
+          type: "DEBIT",
+          amountInCents: 333,
+          postedAt: "2025-04-02",
+          memo: "Tarifa OFX",
+        },
+      ],
+      credits: [
+        {
+          importLineKey: "imp-cr-1",
+          bankAccountId: "bank-1",
+          type: "CREDIT",
+          amountInCents: 999,
+          postedAt: "2025-04-03",
+          memo: "Crédito",
+        },
+      ],
+    });
+    expect(expenseDrafts).toHaveLength(1);
+    expect(expenseDrafts[0]!.fitId).toBe("imp-exp-1");
+    expect(creditDrafts).toHaveLength(1);
+    expect(creditDrafts[0]!.fitId).toBe("imp-cr-1");
+  });
+
   it("buildPreviewDrafts: expenses + credits no mesmo payload", () => {
     const { expenseDrafts, creditDrafts } = buildPreviewDrafts({
       expenses: [

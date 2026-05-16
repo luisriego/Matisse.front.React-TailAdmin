@@ -5,7 +5,12 @@ import Label from "../form/Label";
 import Input from "../form/input/InputField";
 import Button from "../ui/button/Button";
 import { clearSetupUnitBypass } from "../../utils/jwtResidentialUnit";
-import { SetupStatusFetchError, fetchSetupStatus } from "../../utils/setupApi";
+import {
+  SetupStatusFetchError,
+  applyBusinessSetupCompleteFromStatus,
+  clearLocalBusinessSetupComplete,
+  fetchSetupStatus,
+} from "../../utils/setupApi";
 
 export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
@@ -36,10 +41,12 @@ export default function SignInForm() {
 
       const data = await response.json();
       clearSetupUnitBypass();
+      clearLocalBusinessSetupComplete();
       localStorage.setItem("token", data.token);
 
       try {
-        await fetchSetupStatus(data.token);
+        const status = await fetchSetupStatus(data.token);
+        applyBusinessSetupCompleteFromStatus(status);
       } catch (e: unknown) {
         if (
           e instanceof SetupStatusFetchError &&
