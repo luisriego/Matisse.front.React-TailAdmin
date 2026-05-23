@@ -190,6 +190,19 @@ const buildPeriodOptions = (count: number): string[] => {
   return options;
 };
 
+const INCOMES_SELECTED_PERIOD_KEY = "ingressos.selectedPeriodYm";
+
+function resolveIncomesSelectedPeriod(): string {
+  const valid = new Set(buildPeriodOptions(24));
+  try {
+    const raw = localStorage.getItem(INCOMES_SELECTED_PERIOD_KEY);
+    if (raw && /^\d{4}-\d{2}$/.test(raw) && valid.has(raw)) return raw;
+  } catch {
+    
+  }
+  return getInitialPeriod();
+}
+
 const Incomes: React.FC = () => {
   const [yieldIngressosExpanded, setYieldIngressosExpanded] = useState(false);
 
@@ -200,7 +213,9 @@ const Incomes: React.FC = () => {
   const [loadingIncomes, setLoadingIncomes] = useState(true);
   const [incomesError, setIncomesError] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [selectedPeriod, setSelectedPeriod] = useState<string>(getInitialPeriod());
+  const [selectedPeriod, setSelectedPeriod] = useState<string>(() =>
+    resolveIncomesSelectedPeriod(),
+  );
 
   
   useEffect(() => {
@@ -412,7 +427,15 @@ const Incomes: React.FC = () => {
             <span>Mês/Ano</span>
             <select
               value={selectedPeriod}
-              onChange={(e) => setSelectedPeriod(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setSelectedPeriod(v);
+                try {
+                  localStorage.setItem(INCOMES_SELECTED_PERIOD_KEY, v);
+                } catch {
+                  
+                }
+              }}
               className="h-10 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-theme-xs focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900"
             >
               {periodOptions.map((period) => (

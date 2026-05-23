@@ -158,4 +158,49 @@ describe("Incomes", () => {
     const memos = screen.getAllByText("RENDIMENTOS REND PAGO APLIC AUT MAIS");
     expect(memos.length).toBeGreaterThanOrEqual(2);
   });
+
+  it("mantém Mês/Ano ao sair e voltar (localStorage)", async () => {
+    localStorage.setItem("token", "mock-token");
+
+    server.use(
+      http.get("/api/v1/resident-unit/actives", () => HttpResponse.json([])),
+      http.get("/api/v1/income-types", () => HttpResponse.json([])),
+      http.get("/api/v1/incomes", () => HttpResponse.json([])),
+    );
+
+    const user = userEvent.setup();
+    const view = render(
+      <HelmetProvider>
+        <MemoryRouter>
+          <Incomes />
+        </MemoryRouter>
+      </HelmetProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Carregando ingressos/i)).not.toBeInTheDocument();
+    });
+
+    await user.selectOptions(screen.getByLabelText(/Mês\/Ano/i), "2026-01");
+    expect(localStorage.getItem("ingressos.selectedPeriodYm")).toBe("2026-01");
+
+    view.unmount();
+
+    render(
+      <HelmetProvider>
+        <MemoryRouter>
+          <Incomes />
+        </MemoryRouter>
+      </HelmetProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Carregando ingressos/i)).not.toBeInTheDocument();
+    });
+
+    expect((screen.getByLabelText(/Mês\/Ano/i) as HTMLSelectElement).value).toBe(
+      "2026-01",
+    );
+    expect(screen.getByText(/Ingressos de janeiro de 2026/i)).toBeInTheDocument();
+  });
 });

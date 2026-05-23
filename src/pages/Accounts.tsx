@@ -141,7 +141,8 @@ export default function Accounts() {
     return (
       <div className="rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
         <div className="max-w-full overflow-x-auto">
-          <Table className="w-full table-fixed">
+          {/* table-auto evita colspan + painel interior colapsarem a zero com table-fixed */}
+          <Table className="w-full table-auto border-collapse">
             <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
               <TableRow>
                 <TableCell isHeader className="w-12 px-3 py-3 sm:px-4">
@@ -271,11 +272,10 @@ export default function Accounts() {
                       <TableRow className="bg-gray-50/40 dark:bg-white/[0.02]">
                         <TableCell
                           colSpan={6}
-                          className="box-border w-full min-w-0 max-w-none overflow-visible p-0 align-top"
+                          className="box-border w-full max-w-none min-w-[100%] overflow-visible p-0 align-top"
                           id={`ledger-panel-${account.id}`}
-                          style={{ width: "100%" }}
                         >
-                          <div className="block w-full min-w-0 overflow-x-auto">
+                          <div className="block box-border w-full min-w-full overflow-x-auto">
                             <AccountLedgerPanel
                               accountId={account.id}
                               accountName={account.name}

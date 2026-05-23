@@ -113,6 +113,31 @@ function formatReaisFromCents(cents: number): string {
   });
 }
 
+/** Total pactuado de «rateio síndico» a repartir (Matisse / partes iguais = R$ 600). Não usar o campo «objetivo síndico» aqui — costuma guardar outros totais da previsão. */
+const DEFAULT_SYNDIC_SHARED_TOTAL_CENTS = 60000;
+
+/**
+ * Divide `totalCents` inteiro igualmente pelo número de unidades (ordena por `unitLabel` para repartir o resto de forma estável).
+ */
+function syndicSharedEqualPartsByUnitId(
+  totalCents: number,
+  unitRows: Array<{ id: string; unitLabel: string }>,
+): Record<string, number> {
+  const ordered = [...unitRows].sort((a, b) => {
+    const c = a.unitLabel.localeCompare(b.unitLabel, "pt-BR");
+    return c !== 0 ? c : String(a.id).localeCompare(String(b.id));
+  });
+  const n = ordered.length;
+  if (n <= 0) return {};
+  const baseEach = Math.floor(totalCents / n);
+  const remainder = totalCents - baseEach * n;
+  const byId: Record<string, number> = {};
+  ordered.forEach((row, idx) => {
+    byId[row.id] = baseEach + (idx < remainder ? 1 : 0);
+  });
+  return byId;
+}
+
 function formatCentsToPtBr(cents: number | null | undefined): string {
   if (typeof cents !== "number" || !Number.isFinite(cents)) return "—";
   return (cents / 100).toLocaleString("pt-BR", {
@@ -332,7 +357,7 @@ const Slips: React.FC = () => {
   const [expectedTotalInput, setExpectedTotalInput] = useState("");
   const [expectedGasInput, setExpectedGasInput] = useState("");
   const [expectedSyndicInput, setExpectedSyndicInput] = useState("");
-  const [expectedSyndicSharedInput, setExpectedSyndicSharedInput] = useState("");
+  const [expectedSyndicSharedInput, setExpectedSyndicSharedInput] = useState("600,00");
   const [expectedSyndicIndividualInput, setExpectedSyndicIndividualInput] = useState("");
   const [expectedSyndicIndividualUnit, setExpectedSyndicIndividualUnit] = useState("Apto 401");
   const [syndicDistributionRule, setSyndicDistributionRule] = useState<"EQUAL" | "FRACTION">("EQUAL");
@@ -645,6 +670,10 @@ const Slips: React.FC = () => {
     setExpectedTotalInput(stored.expectedTotal);
     setExpectedBaseInput(stored.expectedBase);
     setExpectedSyndicInput(stored.expectedSyndic);
+    /* «Objetivo síndico» na previsão = total do rateio; preenche só o campo de total compartilhado para não cair por engano na soma/coluna equivocada que alimentava o EQUAL. */
+    setExpectedSyndicSharedInput(
+      stored.expectedSyndic.trim() !== "" ? stored.expectedSyndic.trim() : "600,00",
+    );
     setExpectedGasInput(stored.expectedGas);
     setSyndicDistributionRule(stored.syndicDistribution);
 
@@ -975,15 +1004,123 @@ const Slips: React.FC = () => {
     };
   }, [explainData, gasUnitPrice, gasReadings]);
 
+  const syndicValidation = useMemo(() => {
+    if (!explainSummary) return null;
+    const units = explainSummary.units;
+    if (!units || units.length === 0) return null;
+    if (syndicDistributionRule === "FRACTION") {
+      return {
+        enabled: true,
+        blocking: false,
+        equalRuleDiffersFromBackend: false,
+        backendSyndicTotalCents: explainSummary.componentMap.syndic ?? 0,
+        perUnit: 0,
+        expectedTotal: explainSummary.componentMap.syndic ?? 0,
+        mismatches: [] as Array<{ unitLabel: string }>,
+        expectedByUnit: {} as Record<string, number>,
+        totalDiff: 0,
+        message: "Regra ativa: por fração ideal (sem bloqueio por partes iguais).",
+      };
+    }
+    const sharedParsed = expectedCents.syndicShared;
+    const shared =
+      typeof sharedParsed === "number" && sharedParsed > 0
+        ? sharedParsed
+        : DEFAULT_SYNDIC_SHARED_TOTAL_CENTS;
+    const individual = typeof expectedCents.syndicIndividual === "number" ? expectedCents.syndicIndividual : 0;
+    const selectedUnit = expectedSyndicIndividualUnit.trim().toLowerCase();
+    const equalPartByUnit = syndicSharedEqualPartsByUnitId(shared, units);
+    const expectedByUnit: Record<string, number> = {};
+    for (const row of units) {
+      const rowKey = `${row.unitLabel} ${row.id}`.toLowerCase();
+      const bonus = selectedUnit && rowKey.includes(selectedUnit) ? individual : 0;
+      expectedByUnit[row.id] = (equalPartByUnit[row.id] ?? Math.floor(shared / units.length)) + bonus;
+    }
+    const perUnit = units.length > 0 ? shared / units.length : 0;
+    const backendSyndicTotal =
+      typeof explainSummary.componentMap.syndic === "number"
+        ? explainSummary.componentMap.syndic
+        : units.reduce((acc, row) => acc + row.syndic, 0);
+    const mismatches = units.filter((row) => {
+      const expected = expectedByUnit[row.id];
+      return Math.abs((row.syndic ?? 0) - expected) > 1;
+    });
+    const expectedTotal = shared + individual;
+    const totalDiff = Math.abs(backendSyndicTotal - expectedTotal);
+    const equalRuleDiffersFromBackend = mismatches.length > 0 || totalDiff > 1;
+    return {
+      enabled: true,
+      blocking: false,
+      equalRuleDiffersFromBackend,
+      backendSyndicTotalCents: backendSyndicTotal,
+      perUnit,
+      expectedTotal,
+      mismatches,
+      expectedByUnit,
+      totalDiff,
+      message: equalRuleDiffersFromBackend
+        ? `Informação (é normal se a API só fracionar despesas no JSON): nos totais do explain vem ${formatCentsToPtBr(backendSyndicTotal)} como «síndico». Esta tabela aplica já «partes iguais»: total na coluna = ${formatCentsToPtBr(expectedTotal)}.`
+        : "OK: o backend e as partes iguais coincidem no síndico total.",
+    };
+  }, [
+    explainSummary,
+    syndicDistributionRule,
+    expectedCents.syndicShared,
+    expectedCents.syndicIndividual,
+    expectedSyndicIndividualUnit,
+  ]);
+
+  /**
+   * Total da coluna «Rateio síndico» exibível no comparador: com partes iguais coincide com o total definido em `syndicValidation.expectedTotal`.
+   * Não usar o agregado `components` quando a API só traz frações (senão aparece tipo R$555 em vez das R$600 aplicadas nas linhas).
+   */
+  const explainSyndicComparableCents = useMemo((): number | undefined => {
+    if (syndicDistributionRule !== "EQUAL" || !syndicValidation) return undefined;
+    const map = syndicValidation.expectedByUnit ?? {};
+    if (Object.keys(map).length === 0) return undefined;
+    const t = syndicValidation.expectedTotal;
+    return typeof t === "number" && Number.isFinite(t) ? t : undefined;
+  }, [syndicDistributionRule, syndicValidation]);
+
+  /** Soma da coluna «Crédito» tal como aparece na tabela (≠ soma dos `total` brutos da API quando recompomos síndico/gás no cliente). */
+  const explainDisplayedCreditTotal = useMemo(() => {
+    if (!explainSummary) return null;
+    const useEqualSyndicRecompute =
+      syndicDistributionRule === "EQUAL" && syndicValidation?.enabled === true;
+
+    return explainSummary.units.reduce((sum, row) => {
+      if (useEqualSyndicRecompute) {
+        const displaySyndic = syndicValidation!.expectedByUnit[row.id] ?? row.syndic;
+        return sum + row.base + displaySyndic + row.extra + row.reserve + row.gas;
+      }
+      return sum + row.total;
+    }, 0);
+  }, [explainSummary, syndicDistributionRule, syndicValidation]);
+
+  const explainQuadraturaDifference = useMemo(() => {
+    if (!explainSummary || explainDisplayedCreditTotal === null) return null;
+    if (typeof explainSummary.totalCents !== "number") return explainSummary.explicitDifference ?? null;
+    return explainSummary.totalCents - explainDisplayedCreditTotal;
+  }, [
+    explainSummary,
+    explainDisplayedCreditTotal,
+  ]);
+
   const aiInsights = useMemo(() => {
     if (!explainSummary) return [];
     const lines: string[] = [];
-    if (typeof explainSummary.explicitDifference === "number") {
-      if (Math.abs(explainSummary.explicitDifference) <= 1) {
-        lines.push("Quadratura automática OK: a soma por unidade fecha com o total calculado.");
+    const quad =
+      typeof explainQuadraturaDifference === "number"
+        ? explainQuadraturaDifference
+        : explainSummary.explicitDifference;
+    if (typeof quad === "number") {
+      if (Math.abs(quad) <= 1) {
+        lines.push(
+          "Quadratura automática OK: o total do backend fecha com a soma da coluna Crédito exibida na tabela.",
+        );
       } else {
         lines.push(
-          `Atenção: diferença de ${formatCentsToPtBr(explainSummary.explicitDifference)} entre total e soma por unidade.`,
+          `Atenção: diferença de ${formatCentsToPtBr(quad)} entre total do backend e soma da coluna Crédito (valores visíveis na validação).`,
         );
       }
     }
@@ -995,10 +1132,14 @@ const Slips: React.FC = () => {
       { key: "reserve", label: "Fundo de reserva" },
       { key: "base", label: "Base EQUAL" },
     ];
+    const syndicComparable =
+      typeof explainSyndicComparableCents === "number"
+        ? explainSyndicComparableCents
+        : explainSummary.componentMap.syndic;
     const realMap = {
       total: explainSummary.totalCents,
       gas: explainSummary.componentMap.gas,
-      syndic: explainSummary.componentMap.syndic,
+      syndic: syndicComparable,
       extra: explainSummary.componentMap.extra,
       reserve: explainSummary.componentMap.reserve,
       base: explainSummary.componentMap.base,
@@ -1020,61 +1161,7 @@ const Slips: React.FC = () => {
       lines.push("Sem divergências óbvias com os dados preenchidos no comparador.");
     }
     return lines;
-  }, [expectedCents, explainSummary]);
-
-  const syndicValidation = useMemo(() => {
-    if (!explainSummary) return null;
-    const units = explainSummary.units;
-    if (!units || units.length === 0) return null;
-    if (syndicDistributionRule === "FRACTION") {
-      return {
-        enabled: true,
-        blocking: false,
-        perUnit: 0,
-        expectedTotal: explainSummary.componentMap.syndic ?? 0,
-        mismatches: [] as Array<{ unitLabel: string }>,
-        expectedByUnit: {} as Record<string, number>,
-        totalDiff: 0,
-        message: "Regra ativa: por fração ideal (sem bloqueio por partes iguais).",
-      };
-    }
-    const shared = expectedCents.syndicShared ?? expectedCents.syndic ?? 60000;
-    const individual = typeof expectedCents.syndicIndividual === "number" ? expectedCents.syndicIndividual : 0;
-    const selectedUnit = expectedSyndicIndividualUnit.trim().toLowerCase();
-    const perUnit = shared / units.length;
-    const expectedByUnit: Record<string, number> = {};
-    for (const row of units) {
-      const rowKey = `${row.unitLabel} ${row.id}`.toLowerCase();
-      const bonus = selectedUnit && rowKey.includes(selectedUnit) ? individual : 0;
-      expectedByUnit[row.id] = perUnit + bonus;
-    }
-    const mismatches = units.filter((row) => {
-      const expected = expectedByUnit[row.id];
-      return Math.abs((row.syndic ?? 0) - expected) > 1;
-    });
-    const expectedTotal = shared + individual;
-    const totalDiff = Math.abs((explainSummary.componentMap.syndic ?? 0) - expectedTotal);
-    const hasMismatch = mismatches.length > 0 || totalDiff > 1;
-    return {
-      enabled: true,
-      blocking: false,
-      perUnit,
-      expectedTotal,
-      mismatches,
-      expectedByUnit,
-      totalDiff,
-      message: hasMismatch
-        ? "Aviso: rateio do síndico diverge da regra definida (compartilhado + ajuste individual). Verifique os campos de comparação."
-        : "OK: rateio do síndico bate com a regra definida.",
-    };
-  }, [
-    explainSummary,
-    syndicDistributionRule,
-    expectedCents.syndic,
-    expectedCents.syndicShared,
-    expectedCents.syndicIndividual,
-    expectedSyndicIndividualUnit,
-  ]);
+  }, [expectedCents, explainSummary, explainQuadraturaDifference, explainSyndicComparableCents]);
 
   const persistedSlipIdsForTargetMonth = useMemo(() => {
     if (!targetMonth) return [];
@@ -1795,8 +1882,11 @@ const Slips: React.FC = () => {
                   <p className="font-medium">Componentes não retornados pelo backend:</p>
                   <p>{explainSummary.missingFromBackend.join(", ")}</p>
                   <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
-                    Os valores marcados com * na tabela não vieram no payload de <code>explain</code> e foram exibidos como zero.
-                    Para refletir o cálculo real, o backend precisa retornar esses componentes por unidade e no total.
+                    Os valores marcados com * na tabela não vieram no payload de <code>explain</code> por unidade; quando dá para
+                    calcular neste cliente (ex.: consumo × preço do gás ou taxas/fixos que você informou nos campos de geração), eles aparecem
+                    preenchidos — o * indica apenas que{" "}
+                    <strong className="font-medium">não são totais garantidos pela API.</strong>
+                    Para fechar só com servidor, o backend deve devolver esses componentes por unidade e nos totais.
                   </p>
                 </div>
               )}
@@ -1870,11 +1960,8 @@ const Slips: React.FC = () => {
                       <td className="px-3 py-2 text-right">{formatCentsToPtBr(explainSummary.componentMap.gas)}</td>
                       <td className="px-3 py-2 text-right">
                         {formatCentsToPtBr(
-                          syndicDistributionRule === "EQUAL" && syndicValidation?.enabled
-                            ? explainSummary.units.reduce((sum, row) => {
-                                const displaySyndic = syndicValidation.expectedByUnit[row.id] ?? row.syndic;
-                                return sum + row.base + displaySyndic + row.extra + row.reserve + row.gas;
-                              }, 0)
+                          typeof explainDisplayedCreditTotal === "number"
+                            ? explainDisplayedCreditTotal
                             : explainSummary.unitsTotalCents,
                         )}
                       </td>
@@ -1890,11 +1977,31 @@ const Slips: React.FC = () => {
                 </div>
                 <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
                   <p className="text-xs text-gray-500 dark:text-gray-400">Soma por unidades</p>
-                  <p className="text-sm font-semibold text-gray-800 dark:text-white/90">{formatCentsToPtBr(explainSummary.unitsTotalCents)}</p>
+                  <p className="text-sm font-semibold text-gray-800 dark:text-white/90">
+                    {formatCentsToPtBr(
+                      typeof explainDisplayedCreditTotal === "number"
+                        ? explainDisplayedCreditTotal
+                        : explainSummary.unitsTotalCents,
+                    )}
+                  </p>
+                  {typeof explainDisplayedCreditTotal === "number" &&
+                    Math.abs(explainDisplayedCreditTotal - explainSummary.unitsTotalCents) > 1 ? (
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        A soma dos <code className="text-[11px]">total</code> na resposta foi{" "}
+                        {formatCentsToPtBr(explainSummary.unitsTotalCents)}; o número acima é o da coluna Crédito
+                        (consistente com a regra síndico e componentes que recompôs no cliente).
+                      </p>
+                    ) : null}
                 </div>
                 <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
                   <p className="text-xs text-gray-500 dark:text-gray-400">Diferença de quadratura</p>
-                  <p className="text-sm font-semibold text-gray-800 dark:text-white/90">{formatCentsToPtBr(explainSummary.explicitDifference)}</p>
+                  <p className="text-sm font-semibold text-gray-800 dark:text-white/90">
+                    {formatCentsToPtBr(
+                      typeof explainQuadraturaDifference === "number"
+                        ? explainQuadraturaDifference
+                        : explainSummary.explicitDifference,
+                    )}
+                  </p>
                 </div>
               </div>
 
@@ -1932,7 +2039,7 @@ const Slips: React.FC = () => {
                     inputMode="decimal"
                     value={expectedSyndicInput}
                     onChange={(e) => setExpectedSyndicInput(e.target.value)}
-                    placeholder="Objetivo síndico/fração (R$)"
+                    placeholder="Objetivo p/ comparar só coluna síndico (≠ as 600 de partes iguais)"
                     className="h-10 rounded-lg border border-gray-300 px-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
                   />
                   <input
@@ -1940,7 +2047,7 @@ const Slips: React.FC = () => {
                     inputMode="decimal"
                     value={expectedSyndicSharedInput}
                     onChange={(e) => setExpectedSyndicSharedInput(e.target.value)}
-                    placeholder="Rateio Síndico total compartilhado (R$)"
+                    placeholder="Total rateio síndico dividido igual (padrão 600,00)"
                     className="h-10 rounded-lg border border-gray-300 px-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
                   />
                   <input
@@ -1988,7 +2095,9 @@ const Slips: React.FC = () => {
                     className={`mb-3 rounded-md p-3 text-sm ${
                       syndicValidation.blocking
                         ? "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300"
-                        : "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                        : syndicValidation.equalRuleDiffersFromBackend
+                          ? "bg-sky-50 text-sky-900 dark:bg-sky-950/35 dark:text-sky-100/95"
+                          : "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
                     }`}
                   >
                     <p className="font-medium">{syndicValidation.message}</p>
@@ -2023,7 +2132,14 @@ const Slips: React.FC = () => {
                       {[
                         { label: "Total", expected: expectedCents.total, actual: explainSummary.totalCents },
                         { label: "Despesas previstas", expected: expectedCents.base, actual: explainSummary.componentMap.base },
-                        { label: "Rateio Síndico", expected: expectedCents.syndic, actual: explainSummary.componentMap.syndic },
+                        {
+                          label: "Rateio Síndico",
+                          expected: expectedCents.syndic,
+                          actual:
+                            typeof explainSyndicComparableCents === "number"
+                              ? explainSyndicComparableCents
+                              : explainSummary.componentMap.syndic,
+                        },
                         { label: "Taxa extra", expected: expectedCents.extra, actual: explainSummary.componentMap.extra },
                         { label: "Fundo reserva", expected: expectedCents.reserve, actual: explainSummary.componentMap.reserve },
                         { label: "Gás", expected: expectedCents.gas, actual: explainSummary.componentMap.gas },
