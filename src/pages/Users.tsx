@@ -20,7 +20,7 @@ export default function Users() {
           throw new Error("Authentication token not found.");
         }
 
-        const response = await fetch("http://localhost:1000/api/v1/users", {
+        const response = await fetch("/api/v1/users", {
           headers: {
             Authorization: `Bearer ${token}`,
           },

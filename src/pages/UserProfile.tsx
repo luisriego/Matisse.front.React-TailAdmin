@@ -2,10 +2,11 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import PageMeta from "../components/common/PageMeta";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
-import { User, DecodedToken } from '../../types/user';
+import { User, DecodedToken, NotificationRecipient } from '../types/user';
 import EditUserModal from '../components/modal/EditUserModal';
 import EditUnitModal from '../components/unit/EditUnitModal';
 import { UserCircleIcon } from '../icons';
+import { formatDateDMY } from "../utils/dateFormat";
 
 const UserProfile: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -28,7 +29,7 @@ const UserProfile: React.FC = () => {
       const data: User = await response.json();
       setUser(data);
 
-      // Save user and unit to sessionStorage
+      
       const { residentUnit, ...userData } = data;
       sessionStorage.setItem('user', JSON.stringify(userData));
       if (residentUnit) {
@@ -162,7 +163,7 @@ const UserProfile: React.FC = () => {
                   </div>
                   <div>
                     <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Membro desde</p>
-                    <p className="text-sm font-medium text-gray-800 dark:text-white/90">{new Date(user.createdAt.date).toLocaleDateString()}</p>
+                    <p className="text-sm font-medium text-gray-800 dark:text-white/90">{formatDateDMY(user.createdAt.date)}</p>
                   </div>
                 </div>
               </div>
@@ -193,13 +194,13 @@ const UserProfile: React.FC = () => {
                     </div>
                     <div>
                       <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Criado em</p>
-                      <p className="text-sm font-medium text-gray-800 dark:text-white/90">{new Date(user.residentUnit.createdAt).toLocaleDateString()}</p>
+                      <p className="text-sm font-medium text-gray-800 dark:text-white/90">{formatDateDMY(user.residentUnit.createdAt)}</p>
                     </div>
                     <div className="lg:col-span-2">
                       <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">Destinatários de Notificação</p>
                       {user.residentUnit.notificationRecipients.length > 0 ? (
                         <div className="grid grid-cols-1 gap-4 mt-2">
-                          {user.residentUnit.notificationRecipients.map((recipient, index) => (
+                          {user.residentUnit.notificationRecipients.map((recipient: NotificationRecipient, index: number) => (
                             <div key={index} className="p-3 border rounded-lg grid grid-cols-2 gap-4">
                               <div>
                                 <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Nome</p>

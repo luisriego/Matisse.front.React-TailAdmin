@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { Dropdown } from "../ui/dropdown/Dropdown";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { jwtDecode } from 'jwt-decode';
+import { clearSetupUnitBypass } from '../../utils/jwtResidentialUnit';
+import { clearLocalBusinessSetupComplete } from '../../utils/setupApi';
 
 interface DecodedToken {
   iat: number;
@@ -27,7 +29,7 @@ export default function UserDropdown() {
       try {
         const decodedToken = jwtDecode<DecodedToken>(token);
         setUserName(decodedToken.name);
-        setUserEmail(decodedToken.user);
+        setUserEmail(decodedToken.username); 
       } catch (error) {
         console.error('Erro ao decodificar token:', error);
       }
@@ -50,6 +52,8 @@ export default function UserDropdown() {
 
   const handleLogout = () => {
     localStorage.removeItem('token');
+    clearSetupUnitBypass();
+    clearLocalBusinessSetupComplete();
     navigate('/signin');
   };
 
@@ -65,7 +69,7 @@ export default function UserDropdown() {
           ) : userGender === 'H' ? (
             <img src="/images/user/man.png" alt="User" />
           ) : (
-            <img src="/images/user/owner.jpg" alt="User" />
+            <img src="/images/user/woman.jpg" alt="User" />
           )}
         </span>
 
@@ -96,9 +100,7 @@ export default function UserDropdown() {
         className="absolute right-0 mt-[17px] flex w-[260px] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark"
       >
         <div>
-          <span className="block font-medium text-gray-700 text-theme-sm dark:text-gray-400">
-            {userName}
-          </span>
+          {}
           <span className="mt-0.5 block text-theme-xs text-gray-500 dark:text-gray-400">
             {userEmail}
           </span>

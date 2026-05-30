@@ -273,7 +273,7 @@ layer(base);
   }
 
   &::-webkit-scrollbar-thumb {
-    @apply bg-gray-200 rounded-full dark:bg-gray-700;
+    @apply rounded-full bg-gray-200;
   }
 }
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
@@ -765,14 +765,17 @@ span.flatpickr-weekday,
   @apply min-h-screen;
 }
 
+/* Propiedades puras: evita que el minificador CSS genere :is() inválido con @apply en pseudoelementos */
 .simplebar-scrollbar::before {
-  @apply !bg-gray-200 !rounded-full dark:!bg-gray-700 !opacity-100;
+  background-color: var(--color-gray-200, #e4e7ec);
+  border-radius: 9999px;
+  opacity: 1;
 }
 
 .dark .simplebar-scrollbar::before {
-  @apply !bg-gray-700;
+  background-color: var(--color-gray-700, #344054);
 }
 
-.simplebar-scrollbar.simplebar-visible:before {
-  @apply opacity-100;
+.simplebar-scrollbar.simplebar-visible::before {
+  opacity: 1;
 }

@@ -40,7 +40,7 @@ export default function SignUpForm() {
         throw new Error(errorData.message || 'Falha ao registrar');
       }
 
-      navigate('/signin'); // Redirect to login page on successful registration
+      navigate('/signin'); 
     } catch (err: any) {
       setError(err.message);
     } finally {

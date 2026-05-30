@@ -10,7 +10,10 @@ interface SelectProps {
   placeholder?: string;
   onChange: (value: string) => void;
   className?: string;
+  /** Modo não controlado inicial */
   defaultValue?: string;
+  /** Modo controlado — preferido quando o pai guarda o UUID (evita estado interno dessincado). */
+  value?: string;
 }
 
 const Select: React.FC<SelectProps> = ({
@@ -19,14 +22,16 @@ const Select: React.FC<SelectProps> = ({
   onChange,
   className = "",
   defaultValue = "",
+  value,
 }) => {
-  // Manage the selected value
-  const [selectedValue, setSelectedValue] = useState<string>(defaultValue);
+  const [uncontrolled, setUncontrolled] = useState<string>(defaultValue);
+  const isControlled = value !== undefined;
+  const selectedValue = isControlled ? (value ?? "") : uncontrolled;
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value;
-    setSelectedValue(value);
-    onChange(value); // Trigger parent handler
+    const next = e.target.value;
+    if (!isControlled) setUncontrolled(next);
+    onChange(next);
   };
 
   return (
@@ -39,7 +44,7 @@ const Select: React.FC<SelectProps> = ({
       value={selectedValue}
       onChange={handleChange}
     >
-      {/* Placeholder option */}
+      {}
       <option
         value=""
         disabled
@@ -47,7 +52,7 @@ const Select: React.FC<SelectProps> = ({
       >
         {placeholder}
       </option>
-      {/* Map over options */}
+      {}
       {options.map((option) => (
         <option
           key={option.value}

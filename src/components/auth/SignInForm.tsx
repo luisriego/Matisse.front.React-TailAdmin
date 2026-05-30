@@ -4,74 +4,67 @@ import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "../../icons";
 import Label from "../form/Label";
 import Input from "../form/input/InputField";
 import Button from "../ui/button/Button";
-import { jwtDecode } from 'jwt-decode';
-import AssignResidentUnitModal from './AssignResidentUnitModal';
-
-interface DecodedToken {
-  iat: number;
-  exp: number;
-  roles: string[];
-  username: string;
-  id: string;
-  name: string;
-  unit: string | null;
-}
+import { clearSetupUnitBypass } from "../../utils/jwtResidentialUnit";
+import {
+  SetupStatusFetchError,
+  applyBusinessSetupCompleteFromStatus,
+  clearLocalBusinessSetupComplete,
+  fetchSetupStatus,
+} from "../../utils/setupApi";
 
 export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [showAssignResidentUnitModal, setShowAssignResidentUnitModal] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [currentUserUnit, setCurrentUserUnit] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsLoading(true);
-    setError('');
+    setError("");
 
     try {
-      const response = await fetch('/api/v1/login_check', {
-        method: 'POST',
+      const response = await fetch("/api/v1/login_check", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ email, password }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Falha ao entrar');
+        throw new Error(errorData.message || "Falha ao entrar");
       }
 
       const data = await response.json();
-      localStorage.setItem('token', data.token);
+      clearSetupUnitBypass();
+      clearLocalBusinessSetupComplete();
+      localStorage.setItem("token", data.token);
 
-      const decodedToken = jwtDecode<DecodedToken>(data.token);
-      setCurrentUserId(decodedToken.id);
-      setCurrentUserUnit(decodedToken.unit);
-
-      if (!decodedToken.unit) {
-        // User has no resident unit assigned, show modal
-        setShowAssignResidentUnitModal(true);
-      } else {
-        // User has resident unit assigned, redirect to dashboard
-        navigate('/');
+      try {
+        const status = await fetchSetupStatus(data.token);
+        applyBusinessSetupCompleteFromStatus(status);
+      } catch (e: unknown) {
+        if (
+          e instanceof SetupStatusFetchError &&
+          e.statusCode === 401
+        ) {
+          localStorage.removeItem("token");
+          setError("Sessão inválida ao verificar o estado inicial.");
+          return;
+        }
       }
-    } catch (err: any) {
-      setError(err.message);
+      navigate("/", { replace: true });
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Falha ao entrar";
+      setError(message);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleModalClose = () => {
-    setShowAssignResidentUnitModal(false);
-    // After modal closes (unit assigned), navigate to dashboard
-    navigate('/');
   };
 
   return (
@@ -141,7 +134,7 @@ export default function SignInForm() {
                 )}
                 <div>
                   <Button className="w-full" size="sm" disabled={isLoading}>
-                    {isLoading ? 'Entrando...' : 'Entrar'}
+                    {isLoading ? "Entrando..." : "Entrar"}
                   </Button>
                 </div>
               </div>
@@ -161,13 +154,6 @@ export default function SignInForm() {
           </div>
         </div>
       </div>
-      {showAssignResidentUnitModal && currentUserId && (
-        <AssignResidentUnitModal
-          isOpen={showAssignResidentUnitModal}
-          userId={currentUserId}
-          onClose={handleModalClose}
-        />
-      )}
     </div>
   );
 }

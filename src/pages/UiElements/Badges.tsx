@@ -15,7 +15,7 @@ export default function Badges() {
       <div className="space-y-5 sm:space-y-6">
         <ComponentCard title="With Light Background">
           <div className="flex flex-wrap gap-4 sm:items-center sm:justify-center">
-            {/* Light Variant */}
+            {}
             <Badge variant="light" color="primary">
               Primary
             </Badge>
@@ -41,7 +41,7 @@ export default function Badges() {
         </ComponentCard>
         <ComponentCard title="With Solid Background">
           <div className="flex flex-wrap gap-4 sm:items-center sm:justify-center">
-            {/* Light Variant */}
+            {}
             <Badge variant="solid" color="primary">
               Primary
             </Badge>

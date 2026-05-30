@@ -1,6 +1,9 @@
 import { useEffect } from "react";
 import flatpickr from "flatpickr";
 import "flatpickr/dist/flatpickr.css";
+import monthSelectPlugin from "flatpickr/dist/plugins/monthSelect";
+import "flatpickr/dist/plugins/monthSelect/style.css";
+import { Portuguese } from "flatpickr/dist/l10n/pt.js";
 import Label from "./Label";
 import { CalenderIcon } from "../../icons";
 import Hook = flatpickr.Options.Hook;
@@ -8,7 +11,7 @@ import DateOption = flatpickr.Options.DateOption;
 
 type PropsType = {
   id: string;
-  mode?: "single" | "multiple" | "range" | "time";
+  mode?: "single" | "multiple" | "range" | "time" | "month";
   onChange?: Hook | Hook[];
   defaultDate?: DateOption;
   label?: string;
@@ -24,19 +27,32 @@ export default function DatePicker({
   placeholder,
 }: PropsType) {
   useEffect(() => {
-    const flatPickr = flatpickr(`#${id}`, {
-      mode: mode || "single",
-      static: true,
-      monthSelectorType: "static",
-      dateFormat: "Y-m-d",
+    const options: flatpickr.Options.Options = {
+      mode: mode === "month" ? "single" : mode || "single",
+      dateFormat: mode === "month" ? "Y-m" : "Y-m-d",
+      altInput: mode !== "month",
+      altFormat: mode === "month" ? "F Y" : "d/m/Y",
       defaultDate,
       onChange,
-    });
+      locale: Portuguese,
+    };
+
+    if (mode === "month") {
+      options.plugins = [
+        monthSelectPlugin({
+          shorthand: true, 
+          altFormat: "F Y", 
+        }),
+      ];
+    }
+
+    const flatPickrInstance = flatpickr(`#${id}`, options);
 
     return () => {
-      if (!Array.isArray(flatPickr)) {
-        flatPickr.destroy();
-      }
+      const instance = Array.isArray(flatPickrInstance)
+        ? flatPickrInstance[0]
+        : flatPickrInstance;
+      instance?.destroy();
     };
   }, [mode, onChange, id, defaultDate]);
 

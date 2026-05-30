@@ -30,7 +30,7 @@ export interface User {
 export interface DecodedToken {
   id: string;
   name: string;
-  user: string; // This is the email
+  user: string; 
   unit: string;
   roles: string;
 }

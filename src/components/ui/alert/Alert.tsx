@@ -1,12 +1,13 @@
 import { Link } from "react-router";
 
 interface AlertProps {
-  variant: "success" | "error" | "warning" | "info"; // Alert type
-  title: string; // Title of the alert
-  message: string; // Message of the alert
-  showLink?: boolean; // Whether to show the "Learn More" link
-  linkHref?: string; // Link URL
-  linkText?: string; // Link text
+  variant: "success" | "error" | "warning" | "info"; 
+  title: string; 
+  message: string; 
+  showLink?: boolean; 
+  linkHref?: string; 
+  linkText?: string; 
+  onClose?: () => void;
 }
 
 const Alert: React.FC<AlertProps> = ({
@@ -16,8 +17,9 @@ const Alert: React.FC<AlertProps> = ({
   showLink = false,
   linkHref = "#",
   linkText = "Learn more",
+  onClose,
 }) => {
-  // Tailwind classes for each variant
+  
   const variantClasses = {
     success: {
       container:
@@ -41,7 +43,7 @@ const Alert: React.FC<AlertProps> = ({
     },
   };
 
-  // Icon for each variant
+  
   const icons = {
     success: (
       <svg
@@ -113,8 +115,20 @@ const Alert: React.FC<AlertProps> = ({
 
   return (
     <div
-      className={`rounded-xl border p-4 ${variantClasses[variant].container}`}
+      className={`relative rounded-xl border p-4 ${variantClasses[variant].container}`}
     >
+      {onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-3 top-3 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white/90"
+          aria-label="Fechar"
+        >
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      )}
       <div className="flex items-start gap-3">
         <div className={`-mt-0.5 ${variantClasses[variant].icon}`}>
           {icons[variant]}

@@ -43,7 +43,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ isOpen, onClose, user, on
       });
 
       if (response.status === 204) {
-        // Update session storage
+        
         const { residentUnit, ...userData } = formData;
         sessionStorage.setItem('user', JSON.stringify(userData));
         if (residentUnit) {
