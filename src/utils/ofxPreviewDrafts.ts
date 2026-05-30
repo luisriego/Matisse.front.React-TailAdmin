@@ -3,6 +3,8 @@
  * Formas dos campos: ver OpenAPI em /api/v1/doc (não duplicar o schema completo aqui).
  */
 
+import type { ExpectedExpenseConfirmPayload } from "../types/expectedExpenseApi";
+
 function toDateOnly(value: string): string {
   if (!value) return "";
   return value.includes("T") ? value.slice(0, 10) : value.slice(0, 10);
@@ -83,6 +85,11 @@ export interface DraftLine {
   recurringExpenseId: string;
   residentUnitId: string;
   needsHumanReview?: boolean;
+  /** Alimentar memória de previsão (default ON). */
+  isExpectedExpense: boolean;
+  suggestedExpectedExpense: ExpectedExpenseConfirmPayload | null;
+  /** Valores editados na UI (frequência, fixo/variável) enviados no confirm. */
+  expectedExpenseEdit: ExpectedExpenseConfirmPayload | null;
 }
 
 export interface OfxIngestResponse {
@@ -177,6 +184,44 @@ function rowBankAccountId(row: Record<string, unknown> | undefined): string {
   return rowPickString(row, ["bankAccountId", "bank_account_id"]);
 }
 
+function parseSuggestedExpectedExpense(
+  row: Record<string, unknown>,
+): ExpectedExpenseConfirmPayload | null {
+  const raw =
+    row.suggestedExpectedExpense ??
+    row.suggested_expected_expense ??
+    null;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const o = raw as Record<string, unknown>;
+  const recurringExpenseId =
+    rowPickString(o, ["recurringExpenseId", "recurring_expense_id"]) || null;
+  const createRaw = o.createOrUpdate ?? o.create_or_update;
+  let createOrUpdate: ExpectedExpenseConfirmPayload["createOrUpdate"];
+  if (createRaw && typeof createRaw === "object" && !Array.isArray(createRaw)) {
+    const c = createRaw as Record<string, unknown>;
+    const displayName = rowPickString(c, ["displayName", "display_name"]);
+    const frequency = rowPickString(c, ["frequency"]) || "monthly";
+    const amountKindRaw = rowPickString(c, ["amountKind", "amount_kind"]).toLowerCase();
+    const amountKind = amountKindRaw === "fixed" ? "fixed" : "variable";
+    const dueDay = rowPickNumber(c, ["dueDay", "due_day"]) ?? 1;
+    if (displayName) {
+      createOrUpdate = { displayName, frequency, amountKind, dueDay };
+    }
+  }
+  if (!recurringExpenseId && !createOrUpdate) return null;
+  return {
+    recurringExpenseId: recurringExpenseId || undefined,
+    createOrUpdate,
+  };
+}
+
+function parseSuggestedIsExpectedExpense(row: Record<string, unknown>): boolean {
+  const raw = row.suggestedIsExpectedExpense ?? row.suggested_is_expected_expense;
+  if (typeof raw === "boolean") return raw;
+  if (raw === "false" || raw === 0) return false;
+  return true;
+}
+
 export function rowToExpenseDraft(row: Record<string, unknown>): DraftLine | null {
   const fitId = resolveIngestLineId(row);
   const bankAccountId = rowBankAccountId(row);
@@ -209,6 +254,9 @@ export function rowToExpenseDraft(row: Record<string, unknown>): DraftLine | nul
       "suggested_resident_unit_id",
     ]),
     needsHumanReview: needsHumanReview || undefined,
+    isExpectedExpense: parseSuggestedIsExpectedExpense(row),
+    suggestedExpectedExpense: parseSuggestedExpectedExpense(row),
+    expectedExpenseEdit: null,
   };
 }
 

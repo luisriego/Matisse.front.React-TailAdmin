@@ -19,6 +19,14 @@ import { LAST_IMPORTED_STATEMENT_PERIOD_KEY } from "../../utils/defaultAccountin
 import DatePicker from "../form/date-picker";
 import { hasLocalBusinessSetupComplete } from "../../utils/setupApi";
 import { partitionCreditsForBundleView } from "../../utils/ofxBankYieldMemo";
+import {
+  buildExpectedExpenseConfirmPayload,
+  ensureExpectedExpenseEditOnDrafts,
+  EXPECTED_EXPENSE_FREQUENCY_OPTIONS,
+  patchDraftForAmountKind,
+  patchDraftForFrequency,
+  resolveFrequencyFromDraft,
+} from "../../utils/expectedExpenseDraft";
 
 const OFX_INGEST_PATH = "/api/v1/bank/ofx-ingest";
 const OFX_CONFIRM_PATH = "/api/v1/bank/ofx-confirm";
@@ -497,16 +505,20 @@ const BankStatementImportModal: React.FC<BankStatementImportModalProps> = ({
         const { accounts: accList, incomeTypes: incList, expenseTypes: expList } = catalogLoad;
         const principalId = resolveDefaultChartAccountId(accList);
         if (expenseSnap.length > 0) {
+          const typeNames = new Map(expList.map((t) => [t.id, t.name]));
           setExpenseDrafts(
-            expenseSnap.map((d) => {
-              const accountId = d.accountId.trim() ? d.accountId : principalId || d.accountId;
-              let expenseTypeId = d.expenseTypeId;
-              if (!expenseTypeId.trim() && expList.length > 0) {
-                const tid = guessExpenseTypeIdForTarMemo(d.memo, expList);
-                if (tid) expenseTypeId = tid;
-              }
-              return { ...d, accountId, expenseTypeId };
-            })
+            ensureExpectedExpenseEditOnDrafts(
+              expenseSnap.map((d) => {
+                const accountId = d.accountId.trim() ? d.accountId : principalId || d.accountId;
+                let expenseTypeId = d.expenseTypeId;
+                if (!expenseTypeId.trim() && expList.length > 0) {
+                  const tid = guessExpenseTypeIdForTarMemo(d.memo, expList);
+                  if (tid) expenseTypeId = tid;
+                }
+                return { ...d, accountId, expenseTypeId };
+              }),
+              typeNames,
+            ),
           );
         }
         if (creditSnap.length > 0 && incList.length > 0) {
@@ -643,6 +655,9 @@ const BankStatementImportModal: React.FC<BankStatementImportModalProps> = ({
         if (d.description.trim()) line.description = d.description.trim();
         if (d.recurringExpenseId.trim()) line.recurringExpenseId = d.recurringExpenseId.trim();
         if (d.residentUnitId.trim()) line.residentUnitId = d.residentUnitId.trim();
+        const expected = buildExpectedExpenseConfirmPayload(d);
+        line.isExpectedExpense = expected.isExpectedExpense;
+        if (expected.expectedExpense) line.expectedExpense = expected.expectedExpense;
         return line;
       });
 
@@ -726,6 +741,18 @@ const BankStatementImportModal: React.FC<BankStatementImportModalProps> = ({
       const imported =
         typeof body?.imported === "number" ? body.imported : lines.length;
       const skipped = typeof body?.skipped === "number" ? body.skipped : 0;
+      const linked =
+        typeof body?.expectedExpensesLinked === "number"
+          ? body.expectedExpensesLinked
+          : typeof body?.expected_expenses_linked === "number"
+            ? (body.expected_expenses_linked as number)
+            : null;
+      const created =
+        typeof body?.expectedExpensesCreated === "number"
+          ? body.expectedExpensesCreated
+          : typeof body?.expected_expenses_created === "number"
+            ? (body.expected_expenses_created as number)
+            : null;
       const dominantPeriod = getDominantPeriod([
         ...expenseDrafts,
         ...creditDrafts,
@@ -735,7 +762,11 @@ const BankStatementImportModal: React.FC<BankStatementImportModalProps> = ({
       }
       const { expectedSlipTotalCents, validatedAgainstSlips, settlementMonth } =
         readOfxConfirmSettlementMeta(body);
-      let infoMsg = `Gravado: ${imported} linha(s). Ignoradas (já importadas): ${skipped}.`;
+      let infoMsg = `${imported} gasto(s) registrado(s)`;
+      if (linked !== null || created !== null) {
+        infoMsg += ` · ${linked ?? 0} memória(s) actualizada(s) · ${created ?? 0} memória(s) nova(s)`;
+      }
+      if (skipped > 0) infoMsg += `. Ignoradas (já importadas): ${skipped}`;
       if (bankSettlementPeriod) {
         infoMsg += ` Mês de cobro bancário (postedAt): ${formatYearMonthLabel(bankSettlementPeriod)}.`;
       }
@@ -848,9 +879,11 @@ const BankStatementImportModal: React.FC<BankStatementImportModalProps> = ({
       {step === "review" && (
         <div className="space-y-4">
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            <strong>Passo 2:</strong> confira débitos (despesas) e créditos (ingressos). Créditos de
-            liquidação de boletos devem usar <strong>Liquidação de boletos</strong>; juros, rendimentos
-            ou estornos: <strong>Outro</strong> e escolha o tipo de ingresso.
+            <strong>Passo 2:</strong> confira débitos e créditos. Em <strong>Previsão</strong>, escolha se o
+            gasto alimenta a memória (mensal, bimestral, etc.) ou fica <strong>pontual</strong> — ex. jardinagem
+            costuma ser bimestral, não mensal. Créditos de liquidação de boletos:{" "}
+            <strong>Liquidação de boletos</strong>; juros, rendimentos ou estornos: <strong>Outro</strong> e tipo
+            de ingresso.
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400">
             Mês de cobro bancário: <strong>{formatYearMonthLabel(bankSettlementPeriod ?? "")}</strong>{" "}
@@ -943,6 +976,9 @@ const BankStatementImportModal: React.FC<BankStatementImportModalProps> = ({
               <table className="min-w-full divide-y divide-gray-200 text-left text-xs dark:divide-gray-700">
                 <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800/90">
                   <tr>
+                    <th className="px-2 py-2 font-medium text-gray-700 dark:text-gray-300" title="Memória de previsão">
+                      Previsão
+                    </th>
                     <th className="px-2 py-2 font-medium text-gray-700 dark:text-gray-300">Memo</th>
                     <th className="px-2 py-2 font-medium text-gray-700 dark:text-gray-300">Valor</th>
                     <th className="px-2 py-2 font-medium text-gray-700 dark:text-gray-300">Data</th>
@@ -954,6 +990,62 @@ const BankStatementImportModal: React.FC<BankStatementImportModalProps> = ({
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                   {expenseDrafts.map((d, i) => (
                     <tr key={d.fitId} className="align-top">
+                      <td className="px-1 py-1 align-top">
+                        {d.expectedExpenseEdit?.recurringExpenseId && !d.expectedExpenseEdit.createOrUpdate ? (
+                          <span
+                            className="inline-block max-w-[7rem] text-[10px] text-gray-500 dark:text-gray-400"
+                            title="Memória existente — frequência vem do servidor"
+                          >
+                            Memória ligada
+                          </span>
+                        ) : (
+                          <div className="flex min-w-[7.5rem] flex-col gap-1">
+                            <select
+                              value={resolveFrequencyFromDraft(d)}
+                              onChange={(e) => {
+                                const typeName = expenseTypes.find((t) => t.id === d.expenseTypeId)?.name;
+                                updateExpenseDraft(
+                                  i,
+                                  patchDraftForFrequency(
+                                    d,
+                                    e.target.value as "none" | "monthly" | "bimonthly" | "quarterly" | "yearly",
+                                    typeName,
+                                  ),
+                                );
+                              }}
+                              className="h-8 w-full rounded-lg border border-gray-300 bg-white px-1 text-[11px] dark:border-gray-600 dark:bg-gray-900"
+                              title="Com que frequência este gasto entra na previsão?"
+                            >
+                              <option value="none">Pontual</option>
+                              {EXPECTED_EXPENSE_FREQUENCY_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </select>
+                            {d.isExpectedExpense && (
+                              <select
+                                value={d.expectedExpenseEdit?.createOrUpdate?.amountKind ?? "variable"}
+                                onChange={(e) => {
+                                  const typeName = expenseTypes.find((t) => t.id === d.expenseTypeId)?.name;
+                                  updateExpenseDraft(
+                                    i,
+                                    patchDraftForAmountKind(
+                                      d,
+                                      e.target.value as "fixed" | "variable",
+                                      typeName,
+                                    ),
+                                  );
+                                }}
+                                className="h-7 w-full rounded border border-gray-200 bg-gray-50 px-1 text-[10px] dark:border-gray-700 dark:bg-gray-800"
+                              >
+                                <option value="variable">Variável</option>
+                                <option value="fixed">Fixo</option>
+                              </select>
+                            )}
+                          </div>
+                        )}
+                      </td>
                       <td className="px-2 py-2 text-gray-800 dark:text-white/90">
                         <div className="flex flex-wrap items-start gap-1">
                           <span className="line-clamp-2 min-w-0 flex-1" title={d.memo}>

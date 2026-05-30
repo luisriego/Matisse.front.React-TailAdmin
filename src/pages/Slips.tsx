@@ -24,12 +24,11 @@ import {
   parseYm,
 } from "../utils/gasBaselineReference";
 import { parseGasReadingFromUi } from "../utils/gasReadingParser";
-import { loadConvention, saveConvention } from "../utils/condominiumConvention";
+import { loadConventionForMonth } from "../utils/condominiumConvention";
 import {
-  clearSlipsWizardReferenceYm,
-  peekSlipsWizardReferenceYm,
-} from "../utils/slipsWizardReference";
-import { loadInitialForecastExpectations } from "../utils/initialForecastExpectations";
+  loadMonthBillingParams,
+  saveMonthBillingParams,
+} from "../utils/billingPolicyService";
 
 type ExplainPayload = {
   targetMonth?: string;
@@ -313,7 +312,8 @@ const Slips: React.FC = () => {
   const [catalogReady, setCatalogReady] = useState(false);
   /** Evita recargar gás duplicado quando o mount já carregou o mesmo mês. */
   const lastGasYmRef = useRef<string | null>(null);
-  const initialForecastHydrateKeyRef = useRef<string>("");
+  const [paramsLoadedYm, setParamsLoadedYm] = useState<string | null>(null);
+  const [policySyncSource, setPolicySyncSource] = useState<"api" | "local" | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
@@ -340,9 +340,10 @@ const Slips: React.FC = () => {
   const [baselinePeriodYm, setBaselinePeriodYm] = useState(() => getBaselineReferenceYmFromStorage());
   const [baselineMissingLoading, setBaselineMissingLoading] = useState(false);
 
-  const [extraFee, setExtraFee] = useState(() => loadConvention().extraFee);
-  const [reserveFund, setReserveFund] = useState(() => loadConvention().reserveFund);
-  const [gasUnitPrice, setGasUnitPrice] = useState('');
+  const [extraFee, setExtraFee] = useState("");
+  const [reserveFund, setReserveFund] = useState("");
+  const [gasUnitPrice, setGasUnitPrice] = useState("");
+  const [syndicTotal, setSyndicTotal] = useState("600,00");
 
   const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
   const [confirmationModalContent, setConfirmationModalContent] = useState({ title: '', message: '' });
@@ -360,16 +361,70 @@ const Slips: React.FC = () => {
   const [expectedSyndicSharedInput, setExpectedSyndicSharedInput] = useState("600,00");
   const [expectedSyndicIndividualInput, setExpectedSyndicIndividualInput] = useState("");
   const [expectedSyndicIndividualUnit, setExpectedSyndicIndividualUnit] = useState("Apto 401");
-  const [syndicDistributionRule, setSyndicDistributionRule] = useState<"EQUAL" | "FRACTION">("EQUAL");
   const [expectedExtraInput, setExpectedExtraInput] = useState("");
   const [expectedReserveInput, setExpectedReserveInput] = useState("");
   const [expectedBaseInput, setExpectedBaseInput] = useState("");
 
   useEffect(() => {
-    if (extraFee || reserveFund) {
-      saveConvention({ extraFee, reserveFund, syndicFee: "" });
+    if (!targetMonth) return;
+    let cancelled = false;
+    const ym = monthKey(targetMonth);
+    setParamsLoadedYm(null);
+    setPolicySyncSource(null);
+
+    const cached = loadConventionForMonth(ym);
+    setExtraFee(cached.extraFee);
+    setReserveFund(cached.reserveFund);
+    setSyndicTotal(cached.syndicFee);
+    setExpectedSyndicSharedInput(cached.syndicFee.trim() || "600,00");
+    if (cached.gasPricePerM3) {
+      setGasUnitPrice(cached.gasPricePerM3);
     }
-  }, [extraFee, reserveFund]);
+
+    void loadMonthBillingParams(ym).then((params) => {
+      if (cancelled) return;
+      setExtraFee(params.extraFee);
+      setReserveFund(params.reserveFund);
+      setSyndicTotal(params.syndicFee);
+      setExpectedSyndicSharedInput(params.syndicFee.trim() || "600,00");
+      if (params.gasPricePerM3) {
+        setGasUnitPrice(params.gasPricePerM3);
+      }
+      setPolicySyncSource(params.source);
+      setParamsLoadedYm(ym);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [targetMonth]);
+
+  useEffect(() => {
+    if (!targetMonth || !paramsLoadedYm) return;
+    const ym = monthKey(targetMonth);
+    if (ym !== paramsLoadedYm) return;
+
+    const timer = window.setTimeout(() => {
+      void saveMonthBillingParams(ym, {
+        extraFee,
+        reserveFund,
+        syndicFee: syndicTotal,
+        syndicDistribution: "EQUAL",
+        gasPricePerM3: gasUnitPrice,
+      }).then(({ syncedToApi }) => {
+        setPolicySyncSource(syncedToApi ? "api" : "local");
+      });
+    }, 700);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    targetMonth,
+    paramsLoadedYm,
+    extraFee,
+    reserveFund,
+    syndicTotal,
+    gasUnitPrice,
+  ]);
 
   const isGenerationDisabled =
     !extraFee ||
@@ -553,10 +608,16 @@ const Slips: React.FC = () => {
         }
 
         if (gasPriceRes.ok) {
-          const gasPriceData = await gasPriceRes.json();
-          const priceInReais = gasPriceData.price_per_m3_in_cents / 100;
-          setGasUnitPrice(priceInReais.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-          setIsGasPriceModalOpen(false);
+          const monthParams = loadConventionForMonth(monthKey(monthToUse));
+          if (monthParams.gasPricePerM3) {
+            setGasUnitPrice(monthParams.gasPricePerM3);
+            setIsGasPriceModalOpen(false);
+          } else {
+            const gasPriceData = await gasPriceRes.json();
+            const priceInReais = gasPriceData.price_per_m3_in_cents / 100;
+            setGasUnitPrice(priceInReais.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+            setIsGasPriceModalOpen(false);
+          }
         } else {
           const errorData = await parseJsonResponseBody<{ message?: string }>(gasPriceRes);
           const originalMessage = errorData?.message || 'Falha ao carregar o preço do gás.';
@@ -659,23 +720,8 @@ const Slips: React.FC = () => {
   }, [targetMonth, catalogReady, residentUnits, fetchSpecificReading]);
 
   useEffect(() => {
-    if (!targetMonth || !catalogReady || residentUnits.length === 0) return;
-    const ym = monthKey(targetMonth);
-    const stored = loadInitialForecastExpectations();
-    if (!stored || stored.targetYm !== ym) return;
-    const key = `${ym}|${residentUnits.length}|${extraFee}|${reserveFund}`;
-    if (initialForecastHydrateKeyRef.current === key) return;
-    initialForecastHydrateKeyRef.current = key;
-
-    setExpectedTotalInput(stored.expectedTotal);
-    setExpectedBaseInput(stored.expectedBase);
-    setExpectedSyndicInput(stored.expectedSyndic);
-    /* «Objetivo síndico» na previsão = total do rateio; preenche só o campo de total compartilhado para não cair por engano na soma/coluna equivocada que alimentava o EQUAL. */
-    setExpectedSyndicSharedInput(
-      stored.expectedSyndic.trim() !== "" ? stored.expectedSyndic.trim() : "600,00",
-    );
-    setExpectedGasInput(stored.expectedGas);
-    setSyndicDistributionRule(stored.syndicDistribution);
+    if (!catalogReady || residentUnits.length === 0 || !paramsLoadedYm) return;
+    setExpectedSyndicSharedInput(syndicTotal.trim() || "600,00");
 
     const n = residentUnits.length;
     const extraPer = parsePtBrCurrencyToCents(extraFee);
@@ -686,7 +732,7 @@ const Slips: React.FC = () => {
     if (typeof resPer === "number" && n > 0) {
       setExpectedReserveInput(formatReaisFromCents(resPer * n));
     }
-  }, [targetMonth, catalogReady, residentUnits, extraFee, reserveFund]);
+  }, [catalogReady, residentUnits, extraFee, reserveFund, syndicTotal, paramsLoadedYm]);
 
   
   const handleMonthChange: Hook = useCallback((selectedDates) => {
@@ -1008,20 +1054,6 @@ const Slips: React.FC = () => {
     if (!explainSummary) return null;
     const units = explainSummary.units;
     if (!units || units.length === 0) return null;
-    if (syndicDistributionRule === "FRACTION") {
-      return {
-        enabled: true,
-        blocking: false,
-        equalRuleDiffersFromBackend: false,
-        backendSyndicTotalCents: explainSummary.componentMap.syndic ?? 0,
-        perUnit: 0,
-        expectedTotal: explainSummary.componentMap.syndic ?? 0,
-        mismatches: [] as Array<{ unitLabel: string }>,
-        expectedByUnit: {} as Record<string, number>,
-        totalDiff: 0,
-        message: "Regra ativa: por fração ideal (sem bloqueio por partes iguais).",
-      };
-    }
     const sharedParsed = expectedCents.syndicShared;
     const shared =
       typeof sharedParsed === "number" && sharedParsed > 0
@@ -1064,7 +1096,6 @@ const Slips: React.FC = () => {
     };
   }, [
     explainSummary,
-    syndicDistributionRule,
     expectedCents.syndicShared,
     expectedCents.syndicIndividual,
     expectedSyndicIndividualUnit,
@@ -1075,18 +1106,17 @@ const Slips: React.FC = () => {
    * Não usar o agregado `components` quando a API só traz frações (senão aparece tipo R$555 em vez das R$600 aplicadas nas linhas).
    */
   const explainSyndicComparableCents = useMemo((): number | undefined => {
-    if (syndicDistributionRule !== "EQUAL" || !syndicValidation) return undefined;
+    if (!syndicValidation) return undefined;
     const map = syndicValidation.expectedByUnit ?? {};
     if (Object.keys(map).length === 0) return undefined;
     const t = syndicValidation.expectedTotal;
     return typeof t === "number" && Number.isFinite(t) ? t : undefined;
-  }, [syndicDistributionRule, syndicValidation]);
+  }, [syndicValidation]);
 
   /** Soma da coluna «Crédito» tal como aparece na tabela (≠ soma dos `total` brutos da API quando recompomos síndico/gás no cliente). */
   const explainDisplayedCreditTotal = useMemo(() => {
     if (!explainSummary) return null;
-    const useEqualSyndicRecompute =
-      syndicDistributionRule === "EQUAL" && syndicValidation?.enabled === true;
+    const useEqualSyndicRecompute = syndicValidation?.enabled === true;
 
     return explainSummary.units.reduce((sum, row) => {
       if (useEqualSyndicRecompute) {
@@ -1095,7 +1125,7 @@ const Slips: React.FC = () => {
       }
       return sum + row.total;
     }, 0);
-  }, [explainSummary, syndicDistributionRule, syndicValidation]);
+  }, [explainSummary, syndicValidation]);
 
   const explainQuadraturaDifference = useMemo(() => {
     if (!explainSummary || explainDisplayedCreditTotal === null) return null;
@@ -1552,6 +1582,11 @@ const Slips: React.FC = () => {
     });
   }, [baselinePeriodYm]);
 
+  const targetMonthLabel = useMemo(() => {
+    if (!targetMonth) return "—";
+    return targetMonth.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  }, [targetMonth]);
+
   const gasMonthMappingLabel = useMemo(() => {
     if (!targetMonth) return null;
     const {
@@ -1597,10 +1632,14 @@ const Slips: React.FC = () => {
       {!loading && (
         <div className="space-y-6">
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Introduza as leituras de gás por unidade para gerar boletos. Contador inicial:{" "}
-            <strong className="text-gray-800 dark:text-white/90">Contadores iniciais</strong> ou{" "}
-            <strong className="text-gray-800 dark:text-white/90">Unidades residenciais</strong>. Se indicou a previsão
-            no assistente inicial, os objetivos em «Validar cálculo» preenchem-se para esse mês.
+            Introduza as leituras de gás e os parâmetros do mês (taxa extra, fundo, síndico e preço do gás)
+            antes de gerar boletos. Cada mês guarda os seus valores no servidor; meses sem alteração herdam o último definido.
+            {policySyncSource === "local" && (
+              <span className="mt-1 block text-xs text-amber-700 dark:text-amber-300">
+                Parâmetros apenas em cache local — o backend ainda não expõe{" "}
+                <code className="text-xs">/billing-policy</code>.
+              </span>
+            )}
           </p>
           {gasMonthMappingLabel && (
             <div className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-800 dark:border-brand-800/60 dark:bg-brand-950/30 dark:text-brand-200">
@@ -1629,12 +1668,15 @@ const Slips: React.FC = () => {
             />
             <div className="lg:col-span-3 h-full">
               <SlipSettings
+                targetMonthLabel={targetMonthLabel}
                 extraFee={extraFee}
                 setExtraFee={setExtraFee}
                 reserveFund={reserveFund}
                 setReserveFund={setReserveFund}
                 gasUnitPrice={gasUnitPrice}
                 setGasUnitPrice={setGasUnitPrice}
+                syndicTotal={syndicTotal}
+                setSyndicTotal={setSyndicTotal}
               />
             </div>
             <GasConsumptionCard
@@ -1908,11 +1950,11 @@ const Slips: React.FC = () => {
                     {explainSummary.units.map((row) => (
                       (() => {
                         const displaySyndic =
-                          syndicDistributionRule === "EQUAL" && syndicValidation?.enabled
+                          syndicValidation?.enabled
                             ? (syndicValidation.expectedByUnit[row.id] ?? row.syndic)
                             : row.syndic;
                         const displayCredit =
-                          syndicDistributionRule === "EQUAL" && syndicValidation?.enabled
+                          syndicValidation?.enabled
                             ? row.base + displaySyndic + row.extra + row.reserve + row.gas
                             : row.total;
                         return (
@@ -1950,7 +1992,7 @@ const Slips: React.FC = () => {
                       <td className="px-3 py-2 text-right">{formatCentsToPtBr(explainSummary.componentMap.base)}</td>
                       <td className="px-3 py-2 text-right">
                         {formatCentsToPtBr(
-                          syndicDistributionRule === "EQUAL" && syndicValidation?.enabled
+                          syndicValidation?.enabled
                             ? syndicValidation.expectedTotal
                             : explainSummary.componentMap.syndic,
                         )}
@@ -2010,14 +2052,6 @@ const Slips: React.FC = () => {
                   Comparação direta com o demonstrativo (objetivo x cálculo)
                 </p>
                 <div className="grid grid-cols-1 gap-2 md:grid-cols-3 mb-3">
-                  <select
-                    value={syndicDistributionRule}
-                    onChange={(e) => setSyndicDistributionRule(e.target.value as "EQUAL" | "FRACTION")}
-                    className="h-10 rounded-lg border border-gray-300 px-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-                  >
-                    <option value="EQUAL">Regra síndico: partes iguais</option>
-                    <option value="FRACTION">Regra síndico: por fração ideal</option>
-                  </select>
                   <input
                     type="text"
                     inputMode="decimal"

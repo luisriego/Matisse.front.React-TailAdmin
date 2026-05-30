@@ -1,5 +1,7 @@
 import { http, HttpResponse } from "msw";
 import { jwtFromPayload } from "./mockJwt";
+import { billingPolicyHandlers } from "./billingPolicyHandlers";
+import { forecastHandlers } from "./forecastHandlers";
 
 const loginJwt = jwtFromPayload({ exp: 4102444800, id: "u1", sub: "u1" });
 
@@ -74,5 +76,9 @@ export const handlers = [
     HttpResponse.json({ token: loginJwt }),
 
   ),
+
+  ...billingPolicyHandlers,
+
+  ...forecastHandlers,
 
 ];

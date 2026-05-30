@@ -166,4 +166,83 @@ describe("BankStatementImportModal", () => {
       })
     );
   });
+
+  it("envía isExpectedExpense e expectedExpense en débitos com toggle ON", async () => {
+    const confirmBodies: Array<Record<string, unknown>> = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/api/v1/bank/ofx-ingest")) {
+        return jsonResponse(200, {
+          expenses: [
+            {
+              fitId: "fit-db-1",
+              bankAccountId: "bank-1",
+              amountInCents: 18074,
+              postedAt: "2026-01-05",
+              memo: "COPASA",
+              suggestedExpenseTypeId: "exp-type-1",
+              suggestedAccountId: "acc-1",
+              suggestedIsExpectedExpense: true,
+              suggestedExpectedExpense: {
+                createOrUpdate: {
+                  displayName: "COPASA",
+                  frequency: "monthly",
+                  amountKind: "variable",
+                  dueDay: 5,
+                },
+              },
+            },
+          ],
+        });
+      }
+      if (url.endsWith("/api/v1/expense-types")) {
+        return jsonResponse(200, [{ id: "exp-type-1", name: "Água" }]);
+      }
+      if (url.endsWith("/api/v1/income-types")) return jsonResponse(200, []);
+      if (url.endsWith("/api/v1/accounts")) {
+        return jsonResponse(200, [{ id: "acc-1", name: "Conta Principal" }]);
+      }
+      if (url.endsWith("/api/v1/bank/ofx-matching-context")) return jsonResponse(200, {});
+      if (url.endsWith("/api/v1/bank/ofx-confirm")) {
+        confirmBodies.push(JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>);
+        return jsonResponse(201, {
+          imported: 1,
+          expectedExpensesLinked: 0,
+          expectedExpensesCreated: 1,
+        });
+      }
+      return jsonResponse(404, { message: "not found" });
+    });
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const { container } = render(<BankStatementImportModal isOpen={true} onClose={() => {}} />);
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(fileInput, {
+      target: { files: [new File(["OFX"], "jan.ofx", { type: "application/x-ofx" })] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Gerar pré-visualização/i }));
+
+    await screen.findByRole("button", { name: /Confirmar/i });
+    const frequencySelect = container.querySelector(
+      'select option[value="monthly"]',
+    )?.parentElement as HTMLSelectElement | null;
+    expect(frequencySelect?.value).toBe("monthly");
+
+    fireEvent.click(screen.getByRole("button", { name: /Confirmar/i }));
+
+    await waitFor(() => expect(confirmBodies).toHaveLength(1));
+    const lines = (confirmBodies[0]?.lines ?? []) as Array<Record<string, unknown>>;
+    expect(lines[0]).toEqual(
+      expect.objectContaining({
+        fitId: "fit-db-1",
+        isExpectedExpense: true,
+        expectedExpense: expect.objectContaining({
+          createOrUpdate: expect.objectContaining({ displayName: "COPASA" }),
+        }),
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.getByText(/memória\(s\) nova\(s\)/i)).toBeInTheDocument(),
+    );
+  });
 });

@@ -19,6 +19,7 @@ The API is organized into the following Bounded Contexts, each representing a sp
 - [Income](#income)
 - [Gas](#gas)
 - [ResidentUnit](#resident-unit)
+- [BillingPolicy](#billingpolicy)
 - [Slip](#slip)
 - [User](#user)
 
@@ -958,6 +959,59 @@ Retrieves a single resident unit by its ID.
 
 -   `200 OK`: The request was successful.
 -   `404 Not Found`: The specified resident unit does not exist.
+
+---
+
+## BillingPolicy
+
+Monthly billing parameters (extra fee, reserve fund, syndic share, gas price) keyed by **target slip month** (`YYYY-MM`). Source of truth for slip generation; append-only events with materialized snapshots.
+
+**Full backend specification:** [docs/BACKEND_BILLING_POLICY.md](docs/BACKEND_BILLING_POLICY.md)
+
+### `PUT /api/v1/billing-policy/months/{targetMonth}`
+
+Records parameters for one month (emits `MonthlyBillingParametersRecorded`).
+
+**Request Body:**
+
+```json
+{
+  "extra_fee_per_unit_cents": 25000,
+  "reserve_fund_per_unit_cents": 9370,
+  "syndic_share_total_cents": 60000,
+  "syndic_allocation_rule": "equal_parts",
+  "gas_price_per_m3_cents": 2600
+}
+```
+
+**Responses:**
+
+-   `201 Created`: Event persisted and snapshot updated.
+-   `400 Bad Request`: Validation failed.
+
+### `GET /api/v1/billing-policy/resolve?targetMonth=YYYY-MM`
+
+Returns **resolved** parameters for the month (explicit snapshot or inherited from the latest prior month).
+
+**Example Response:**
+
+```json
+{
+  "target_month": "2026-04",
+  "source_month": "2026-01",
+  "explicit": false,
+  "extra_fee_per_unit_cents": 25000,
+  "reserve_fund_per_unit_cents": 9370,
+  "syndic_share_total_cents": 60000,
+  "syndic_allocation_rule": "equal_parts",
+  "gas_price_per_m3_cents": 2600,
+  "recorded_at": "2026-01-10T12:00:00+00:00"
+}
+```
+
+### Slip generation integration
+
+When billing policy snapshots exist, `POST /api/v1/slips/generation` **must** resolve parameters via `GET /billing-policy/resolve` for the same `targetMonth`. Client-supplied `extraFee` / `reserveFund` are legacy and should be ignored if they differ.
 
 ---
 

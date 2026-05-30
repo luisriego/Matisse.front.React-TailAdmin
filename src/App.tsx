@@ -3,6 +3,7 @@ import {
   BrowserRouter as Router,
   Routes,
   Route,
+  Navigate,
 } from "react-router-dom";
 import AppLayout from "./layout/AppLayout";
 import { ScrollToTop } from "./components/common/ScrollToTop";
@@ -21,7 +22,7 @@ const ResidentUnits = lazy(() => import("./pages/ResidentUnits"));
 const Users = lazy(() => import("./pages/Users"));
 const Slips = lazy(() => import("./pages/Slips"));
 const RecurringExpenses = lazy(() => import("./pages/RecurringExpenses"));
-const Settings = lazy(() => import("./pages/Settings"));
+const Previsao = lazy(() => import("./pages/Previsao"));
 
 export default function App() {
   return (
@@ -41,8 +42,9 @@ export default function App() {
               <Route path="/recurring-expenses" element={<RecurringExpenses />} />
               <Route path="/unidades-residenciais" element={<ResidentUnits />} />
               <Route path="/boletos" element={<Slips />} />
+              <Route path="/previsao" element={<Previsao />} />
               <Route path="/usuarios" element={<Users />} />
-              <Route path="/configuracoes" element={<Settings />} />
+              <Route path="/configuracoes" element={<Navigate to="/boletos" replace />} />
             </Route>
           </Route>
 

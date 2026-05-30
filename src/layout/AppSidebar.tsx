@@ -11,11 +11,9 @@ import {
   HorizontaLDots,
   ListIcon,
   PageIcon,
-  PlugInIcon,
   UserCircleIcon,
 } from "../icons";
 import { useSidebar } from "../context/SidebarContext";
-import SidebarWidget from "./SidebarWidget";
 
 type NavItem = {
   name: string;
@@ -34,6 +32,11 @@ const navItems: NavItem[] = [
     icon: <PageIcon />,
     name: "Boletos",
     path: "/boletos",
+  },
+  {
+    icon: <ListIcon />,
+    name: "Previsão",
+    path: "/previsao",
   },
   {
     icon: <BoxCubeIcon />,
@@ -64,11 +67,6 @@ const navItems: NavItem[] = [
     icon: <UserCircleIcon />,
     name: "Usuários",
     path: "/usuarios",
-  },
-  {
-    icon: <PlugInIcon />,
-    name: "Configurações",
-    path: "/configuracoes",
   },
 ];
 
@@ -352,7 +350,6 @@ const AppSidebar: React.FC = () => {
             )}
           </div>
         </nav>
-        {isExpanded || isHovered || isMobileOpen ? <SidebarWidget /> : null}
       </div>
     </aside>
   );
