@@ -171,77 +171,84 @@ const AddAccountModal: React.FC<AddAccountModalProps> = ({
       showCloseButton={showCloseButton}
       closeOnBackdropClick={closeOnBackdropClick}
       closeOnEscape={closeOnEscape}
+      widthClass="max-w-2xl"
     >
       <form className="flex flex-col" onSubmit={handleSubmit}>
-        <div className="custom-scrollbar h-[450px] overflow-y-auto px-2 pb-3">
-          <div className="mt-7">
-            <h5 className="mb-5 text-lg font-medium text-gray-800 dark:text-white/90 lg:mb-6">Detalhes da Conta</h5>
-            <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Nome</label>
-                <input
-                  type="text"
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                  className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-                  placeholder="Nome da conta"
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label htmlFor="description" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Descripción</label>
-                <textarea
-                  id="description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={3}
-                  className="w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-800"
-                  placeholder="Descripción de la cuenta"
-                ></textarea>
-              </div>
-              <div className="sm:col-span-1">
-                <label htmlFor="initialBalance" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                  Saldo inicial (obrigatório na API)
-                </label>
-                <p className="mb-1.5 text-xs text-gray-500 dark:text-gray-400">
-                  O servidor deve gravar o saldo inicial no mesmo pedido{" "}
-                  <code className="text-[11px]">PUT /api/v1/accounts/create</code>{" "}
-                  (<code className="text-[11px]">initialBalanceInCents</code> + data). Zero explícito é válido.
-                </p>
-                <input
-                  type="number"
-                  id="initialBalance"
-                  value={initialBalance}
-                  onChange={(e) => {
-                    const v = parseFloat(e.target.value);
-                    setInitialBalance(Number.isFinite(v) ? v : 0);
-                  }}
-                  step="0.01"
-                  required
-                  className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-                  placeholder="0.00"
-                />
-              </div>
-              <div className="sm:col-span-1">
-                <DatePicker
-                  id="initial-balance-date"
-                  label="Data do Saldo"
-                  defaultDate={initialBalanceDate}
-                  onChange={([selectedDate]) => {
-                    if (selectedDate) {
-                      setInitialBalanceDate(selectedDate.toISOString().split('T')[0]);
-                    }
-                  }}
-                  placeholder="Seleccionar data"
-                />
-              </div>
+        <p className="mb-5 text-sm text-gray-500 dark:text-gray-400">
+          Indique onde o condomínio mantém o dinheiro (caixa, banco, etc.) e quanto
+          havia nessa conta na data de referência.
+        </p>
+
+        <div className="space-y-5">
+          <div>
+            <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Nome</label>
+            <input
+              type="text"
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+              placeholder="Ex.: Banco Principal, Caixa"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="description" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Descrição</label>
+            <textarea
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              className="w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+              placeholder="Opcional — ex.: conta corrente do BB, agência 1234"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <div className="min-w-0">
+              <label htmlFor="initialBalance" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+                Saldo inicial (R$)
+              </label>
+              <input
+                type="number"
+                id="initialBalance"
+                value={initialBalance}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  setInitialBalance(Number.isFinite(v) ? v : 0);
+                }}
+                step="0.01"
+                required
+                className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+                placeholder="0,00"
+              />
+              <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                Valor que a conta tinha nessa data. Pode ser 0,00 se ainda não havia movimentos.
+              </p>
+            </div>
+            <div className="min-w-0">
+              <DatePicker
+                id="initial-balance-date"
+                label="Data de referência"
+                defaultDate={initialBalanceDate}
+                onChange={([selectedDate]) => {
+                  if (selectedDate) {
+                    setInitialBalanceDate(selectedDate.toISOString().split('T')[0]);
+                  }
+                }}
+                placeholder="Seleccionar data"
+              />
+              <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                Dia em que esse saldo estava correcto (ex.: início do mês de abertura).
+              </p>
             </div>
           </div>
         </div>
+
         {error && <ErrorAlert message={error} />}
         {success && <SuccessAlert message={success} />}
-        <div className="flex items-center gap-3 px-2 mt-6 lg:justify-end">
+        <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
           <button type="button" onClick={onClose} className="inline-flex items-center justify-center gap-2 px-4 py-3 text-sm transition bg-white rounded-lg text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:bg-white/[0.03] dark:hover:text-gray-300 ">Cancelar</button>
           <button type="submit" disabled={loading} className="inline-flex items-center justify-center gap-2 px-4 py-3 text-sm transition rounded-lg bg-brand-500 text-white shadow-theme-xs hover:bg-brand-600 disabled:bg-brand-300 ">
             {loading ? 'Salvando...' : 'Salvar Conta'}

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import ComponentCard from "../components/common/ComponentCard";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import PageMeta from "../components/common/PageMeta";
@@ -67,6 +67,7 @@ export default function Accounts() {
     } catch (error: any) {
       setError(error.message);
       console.error("Failed to fetch accounts:", error);
+      setLoadingBalances(false);
     } finally {
       setLoading(false);
     }
@@ -129,6 +130,24 @@ export default function Accounts() {
     setExpandedAccountId((prev) => (prev === accountId ? null : accountId));
   };
 
+  const { totalBalanceCents, activeAccountsCount } = useMemo(() => {
+    let total = 0;
+    let active = 0;
+    for (const account of accounts) {
+      if (typeof account.balance === "number" && Number.isFinite(account.balance)) {
+        total += account.balance;
+      }
+      if (account.isActive) active += 1;
+    }
+    return { totalBalanceCents: total, activeAccountsCount: active };
+  }, [accounts]);
+
+  const formatBrl = (cents: number) =>
+    (cents / 100).toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    });
+
   const renderContent = () => {
     if (loading || loadingBalances) {
       return <p>Carregando...</p>;
@@ -139,7 +158,31 @@ export default function Accounts() {
     }
 
     return (
-      <div className="rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+      <div className="space-y-4">
+        {accounts.length > 0 && (
+          <div className="flex flex-col gap-3 rounded-xl border border-brand-200 bg-brand-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-brand-800/60 dark:bg-brand-900/20">
+            <div>
+              <p className="text-sm font-semibold text-gray-800 dark:text-white/90">
+                Total das contas
+              </p>
+              <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                Soma de {accounts.length} conta(s) contabilística(s) — deve coincidir com o
+                saldo do extrato da conta bancária única do condomínio.
+              </p>
+            </div>
+            <p
+              className={`text-2xl font-bold tabular-nums sm:text-right ${
+                totalBalanceCents < 0
+                  ? "text-error-500"
+                  : "text-brand-700 dark:text-brand-300"
+              }`}
+            >
+              {formatBrl(totalBalanceCents)}
+            </p>
+          </div>
+        )}
+
+        <div className="rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
         <div className="max-w-full overflow-x-auto">
           {/* table-auto evita colspan + painel interior colapsarem a zero com table-fixed */}
           <Table className="w-full table-auto border-collapse">
@@ -289,8 +332,36 @@ export default function Accounts() {
                   </Fragment>
                 );
               })}
+              {accounts.length > 0 && (
+                <TableRow className="border-t-2 border-gray-200 bg-gray-50/80 dark:border-gray-700 dark:bg-white/[0.04]">
+                  <TableCell className="px-3 py-3 sm:px-4" />
+                  <TableCell
+                    colSpan={2}
+                    className="px-5 py-4 font-semibold text-gray-800 text-theme-sm dark:text-white/90 sm:px-6"
+                  >
+                    Total ({accounts.length} contas
+                    {activeAccountsCount < accounts.length
+                      ? `, ${activeAccountsCount} ativas`
+                      : ""}
+                    )
+                  </TableCell>
+                  <TableCell className="px-5 py-4 text-right font-bold sm:px-6">
+                    <span
+                      className={`tabular-nums text-theme-sm ${
+                        totalBalanceCents < 0
+                          ? "text-error-500"
+                          : "text-brand-700 dark:text-brand-300"
+                      }`}
+                    >
+                      {formatBrl(totalBalanceCents)}
+                    </span>
+                  </TableCell>
+                  <TableCell colSpan={2} className="px-5 py-4 sm:px-6" />
+                </TableRow>
+              )}
             </TableBody>
           </Table>
+        </div>
         </div>
       </div>
     );

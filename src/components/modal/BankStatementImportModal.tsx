@@ -27,6 +27,15 @@ import {
   patchDraftForFrequency,
   resolveFrequencyFromDraft,
 } from "../../utils/expectedExpenseDraft";
+import {
+  creditNeedsSettlementSplit,
+  formatMissingSettlementParamsMessage,
+  mergeSettlementFallbackIntoConfirmBody,
+  mergeSettlementFallbackIntoCreditLine,
+  pickSettlementMonthFromCredits,
+  resolveSettlementFallbackCents,
+  settlementFallbackIsComplete,
+} from "../../utils/ofxSettlementFallback";
 
 const OFX_INGEST_PATH = "/api/v1/bank/ofx-ingest";
 const OFX_CONFIRM_PATH = "/api/v1/bank/ofx-confirm";
@@ -694,13 +703,60 @@ const BankStatementImportModal: React.FC<BankStatementImportModalProps> = ({
 
       const lines = [...expenseLines, ...creditLines];
 
+      const confirmBody: Record<string, unknown> = { bankAccountId, lines };
+      const settlementCredits = creditDrafts.filter(creditNeedsSettlementSplit);
+      if (settlementCredits.length > 0) {
+        const settlementYm =
+          pickSettlementMonthFromCredits(creditDrafts) ||
+          previewSettlementMonth ||
+          bankSettlementPeriod ||
+          "";
+        if (!/^\d{4}-\d{2}$/.test(settlementYm)) {
+          setError(
+            "Mês de liquidação (settlementMonth) em falta nos créditos. Reimporte o OFX ou classifique como «Outro».",
+          );
+          setLoadingConfirm(false);
+          return;
+        }
+
+        const fromDraftExtra = settlementCredits.find((c) =>
+          Number.isFinite(c.settlementExtraFeePerUnitCents),
+        )?.settlementExtraFeePerUnitCents;
+        const fromDraftReserve = settlementCredits.find((c) =>
+          Number.isFinite(c.settlementReserveFundPerUnitCents),
+        )?.settlementReserveFundPerUnitCents;
+        if (fromDraftExtra !== undefined) {
+          confirmBody.settlementExtraFeePerUnitCents = fromDraftExtra;
+        }
+        if (fromDraftReserve !== undefined) {
+          confirmBody.settlementReserveFundPerUnitCents = fromDraftReserve;
+        }
+
+        const needsPolicyFallback =
+          confirmBody.settlementExtraFeePerUnitCents === undefined ||
+          confirmBody.settlementReserveFundPerUnitCents === undefined;
+
+        if (needsPolicyFallback) {
+          const fallback = await resolveSettlementFallbackCents(settlementYm);
+          if (!settlementFallbackIsComplete(fallback)) {
+            setError(formatMissingSettlementParamsMessage(settlementYm));
+            setLoadingConfirm(false);
+            return;
+          }
+          mergeSettlementFallbackIntoConfirmBody(confirmBody, fallback);
+          for (const line of creditLines) {
+            mergeSettlementFallbackIntoCreditLine(line, fallback);
+          }
+        }
+      }
+
       const res = await fetch(OFX_CONFIRM_PATH, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ bankAccountId, lines }),
+        body: JSON.stringify(confirmBody),
       });
 
       const text = await res.text();

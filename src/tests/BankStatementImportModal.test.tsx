@@ -101,6 +101,73 @@ describe("BankStatementImportModal", () => {
     );
   });
 
+  it("preenche settlementExtra/Reserve a partir de billing-policy quando o ingest não traz céntimos", async () => {
+    const confirmBodies: Array<Record<string, unknown>> = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/api/v1/bank/ofx-ingest")) {
+        return jsonResponse(200, {
+          credits: [
+            {
+              fitId: "fit-cr-liq",
+              bankAccountId: "bank-1",
+              amountInCents: 500000,
+              postedAt: "2026-04-06",
+              memo: "LIQUIDACAO BOLETOS",
+              suggestedCreditKind: "boleto_settlement",
+              settlementMonth: "2026-03",
+            },
+          ],
+        });
+      }
+      if (url.includes("/api/v1/billing-policy/resolve")) {
+        return jsonResponse(200, {
+          data: {
+            extraFeePerUnitCents: 25000,
+            reserveFundPerUnitCents: 9370,
+            syndicShareTotalCents: 60000,
+            gasPricePerM3Cents: 2600,
+            sourceMonth: "2026-03",
+            explicit: true,
+          },
+        });
+      }
+      if (url.endsWith("/api/v1/expense-types")) return jsonResponse(200, []);
+      if (url.endsWith("/api/v1/income-types")) return jsonResponse(200, [{ id: "inc-1", name: "Quota" }]);
+      if (url.endsWith("/api/v1/accounts")) return jsonResponse(200, []);
+      if (url.endsWith("/api/v1/bank/ofx-matching-context")) return jsonResponse(200, {});
+      if (url.endsWith("/api/v1/bank/ofx-confirm")) {
+        confirmBodies.push(JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>);
+        return jsonResponse(201, { imported: 1, skipped: 0 });
+      }
+      return jsonResponse(404, { message: "not found" });
+    });
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const { container } = render(<BankStatementImportModal isOpen={true} onClose={() => {}} />);
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement | null;
+    fireEvent.change(fileInput!, {
+      target: { files: [new File(["OFX"], "statement.ofx", { type: "application/x-ofx" })] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Gerar pré-visualização/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /Confirmar/i }));
+
+    await waitFor(() => expect(confirmBodies).toHaveLength(1));
+    expect(confirmBodies[0]).toEqual(
+      expect.objectContaining({
+        settlementExtraFeePerUnitCents: 25000,
+        settlementReserveFundPerUnitCents: 9370,
+      }),
+    );
+    const lines = (confirmBodies[0]?.lines ?? []) as Array<Record<string, unknown>>;
+    expect(lines[0]).toEqual(
+      expect.objectContaining({
+        settlementExtraFeePerUnitCents: 25000,
+        settlementReserveFundPerUnitCents: 9370,
+      }),
+    );
+  });
+
   it("exige incomeTypeId cuando crédito se clasifica como other", async () => {
     const confirmBodies: Array<Record<string, unknown>> = [];
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

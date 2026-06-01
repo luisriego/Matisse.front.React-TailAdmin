@@ -90,7 +90,7 @@ describe("AddAccountModal", () => {
     fireEvent.change(screen.getByLabelText(/Nome/i), {
       target: { value: "Reserva" },
     });
-    fireEvent.change(screen.getByLabelText(/Descripción/i), {
+    fireEvent.change(screen.getByLabelText(/Descrição/i), {
       target: { value: "Fundo legal" },
     });
     fireEvent.change(screen.getByLabelText(/Saldo inicial/i), {

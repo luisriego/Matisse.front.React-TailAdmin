@@ -29,6 +29,11 @@ import {
   loadMonthBillingParams,
   saveMonthBillingParams,
 } from "../utils/billingPolicyService";
+import {
+  peekSlipsWizardReferenceYm,
+  clearSlipsWizardReferenceYm,
+} from "../utils/slipsWizardReference";
+import { fetchActiveResidentUnits } from "../utils/fetchActiveResidentUnits";
 
 type ExplainPayload = {
   targetMonth?: string;
@@ -313,7 +318,6 @@ const Slips: React.FC = () => {
   /** Evita recargar gás duplicado quando o mount já carregou o mesmo mês. */
   const lastGasYmRef = useRef<string | null>(null);
   const [paramsLoadedYm, setParamsLoadedYm] = useState<string | null>(null);
-  const [policySyncSource, setPolicySyncSource] = useState<"api" | "local" | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
@@ -370,7 +374,6 @@ const Slips: React.FC = () => {
     let cancelled = false;
     const ym = monthKey(targetMonth);
     setParamsLoadedYm(null);
-    setPolicySyncSource(null);
 
     const cached = loadConventionForMonth(ym);
     setExtraFee(cached.extraFee);
@@ -390,7 +393,6 @@ const Slips: React.FC = () => {
       if (params.gasPricePerM3) {
         setGasUnitPrice(params.gasPricePerM3);
       }
-      setPolicySyncSource(params.source);
       setParamsLoadedYm(ym);
     });
 
@@ -411,8 +413,6 @@ const Slips: React.FC = () => {
         syndicFee: syndicTotal,
         syndicDistribution: "EQUAL",
         gasPricePerM3: gasUnitPrice,
-      }).then(({ syncedToApi }) => {
-        setPolicySyncSource(syncedToApi ? "api" : "local");
       });
     }, 700);
 
@@ -539,24 +539,21 @@ const Slips: React.FC = () => {
           });
         }
 
-        const [typesRes, unitsRes, accountsRes, gasPriceRes] = await Promise.all([
+        const [typesRes, accountsRes, gasPriceRes, unitsData] = await Promise.all([
           fetch('/api/v1/expense-types', { headers }),
-          fetch('/api/v1/resident-unit/actives', { headers }),
           fetch('/api/v1/accounts', { headers }),
           fetch('/api/v1/gas/price', { headers }),
+          fetchActiveResidentUnits(token),
         ]);
 
         if (cancelled) return;
 
-        let residentsLoaded: ResidentUnit[] = [];
+        let residentsLoaded: ResidentUnit[] = unitsData;
         let accountsLoaded: Account[] = [];
 
-        if (unitsRes.ok) {
-          const unitsData: ResidentUnit[] = await unitsRes.json();
-          residentsLoaded = unitsData;
-          setResidentUnits(unitsData);
+        setResidentUnits(unitsData);
 
-          
+        if (unitsData.length > 0) {
           const {
             previousReadingYear,
             previousReadingMonth,
@@ -581,10 +578,6 @@ const Slips: React.FC = () => {
           }));
           setGasReadings(initialGasReadings);
           lastGasYmRef.current = monthKey(monthToUse);
-
-        } else {
-          const errorData = await parseJsonResponseBody<{ message?: string }>(unitsRes);
-          throw new Error(errorData?.message || 'Falha ao carregar unidades residenciais.');
         }
 
         if (typesRes.ok) {
@@ -1634,12 +1627,6 @@ const Slips: React.FC = () => {
           <p className="text-sm text-gray-600 dark:text-gray-400">
             Introduza as leituras de gás e os parâmetros do mês (taxa extra, fundo, síndico e preço do gás)
             antes de gerar boletos. Cada mês guarda os seus valores no servidor; meses sem alteração herdam o último definido.
-            {policySyncSource === "local" && (
-              <span className="mt-1 block text-xs text-amber-700 dark:text-amber-300">
-                Parâmetros apenas em cache local — o backend ainda não expõe{" "}
-                <code className="text-xs">/billing-policy</code>.
-              </span>
-            )}
           </p>
           {gasMonthMappingLabel && (
             <div className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-800 dark:border-brand-800/60 dark:bg-brand-950/30 dark:text-brand-200">

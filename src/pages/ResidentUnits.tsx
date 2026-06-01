@@ -7,6 +7,7 @@ import { PencilIcon } from "../icons";
 import EditResidentUnitModal from "../components/modal/EditResidentUnitModal";
 import { ResidentUnit } from "../types/residentUnit"; 
 import BulkAddUnitsModal from "../components/modal/BulkAddUnitsModal";
+import { fetchActiveResidentUnits } from "../utils/fetchActiveResidentUnits";
 
 
 const ResidentUnits: React.FC = () => {
@@ -28,16 +29,8 @@ const ResidentUnits: React.FC = () => {
         throw new Error("Token de autenticação não encontrado.");
       }
 
-      const response = await fetch(`/api/v1/resident-unit/actives`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data: ResidentUnit[] = await response.json();
-      setResidentUnits(data);
+      const units = await fetchActiveResidentUnits(token);
+      setResidentUnits(units);
 
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Ocorreu um erro desconhecido.';

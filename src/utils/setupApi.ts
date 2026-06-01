@@ -127,6 +127,9 @@ export function isSetupApiWhitelistPath(pathname: string | null): boolean {
     return true;
   if (p === "/api/v1/income-types" || p.startsWith("/api/v1/income-types/"))
     return true;
+  if (p.startsWith("/api/v1/resident-unit")) return true;
+  if (p.startsWith("/api/v1/gas/")) return true;
+  if (p.startsWith("/api/v1/slips")) return true;
   if (p === "/api/v1/login_check") return true;
   if (p.startsWith("/api/v1/users/register")) return true;
   if (p.startsWith("/api/v1/users/activate")) return true;
@@ -205,9 +208,12 @@ export async function tryHandle403SetupRequired(
       }),
     );
 
-    if (window.location.pathname !== "/") {
-      window.location.replace("/");
-    }
+    window.dispatchEvent(
+      new CustomEvent("matisse:setup-required", {
+        detail: data,
+      }),
+    );
+
     return true;
   } catch {
     return false;
@@ -292,4 +298,25 @@ export async function postSetupInitialBalancesConfirm(
 
 export function clearStoredSetupRequired(): void {
   sessionStorage.removeItem(STORAGE_SETUP_REQUIRED_KEY);
+}
+
+export function readStoredSetupRequired(): {
+  message: string;
+  setup: SetupStatusPayload;
+} | null {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_SETUP_REQUIRED_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as {
+      message?: unknown;
+      setup?: unknown;
+    };
+    if (typeof parsed.setup !== "object" || parsed.setup === null) return null;
+    return {
+      message: typeof parsed.message === "string" ? parsed.message : "",
+      setup: parsed.setup as SetupStatusPayload,
+    };
+  } catch {
+    return null;
+  }
 }

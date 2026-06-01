@@ -12,6 +12,10 @@ describe("isSetupApiWhitelistPath", () => {
     expect(isSetupApiWhitelistPath("/api/v1/accounts/abc/balance")).toBe(true);
     expect(isSetupApiWhitelistPath("/api/v1/expense-types")).toBe(true);
     expect(isSetupApiWhitelistPath("/api/v1/income-types")).toBe(true);
+    expect(isSetupApiWhitelistPath("/api/v1/resident-unit/actives")).toBe(true);
+    expect(isSetupApiWhitelistPath("/api/v1/resident-unit/create")).toBe(true);
+    expect(isSetupApiWhitelistPath("/api/v1/gas/price")).toBe(true);
+    expect(isSetupApiWhitelistPath("/api/v1/slips/generation")).toBe(true);
   });
 
   it("não trata rutas arbitrárias como whitelisted", () => {

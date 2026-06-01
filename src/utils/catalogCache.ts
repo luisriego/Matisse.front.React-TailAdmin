@@ -11,8 +11,25 @@ export function parseListResponse<T>(raw: unknown): T[] {
   if (Array.isArray(raw)) return raw as T[];
   if (raw && typeof raw === "object") {
     const o = raw as Record<string, unknown>;
-    if (Array.isArray(o.data)) return o.data as T[];
-    if (Array.isArray(o.content)) return o.content as T[];
+    const keys = [
+      "data",
+      "content",
+      "items",
+      "results",
+      "types",
+      "incomeTypes",
+      "income_types",
+      "expenseTypes",
+      "expense_types",
+      "hydra:member",
+    ] as const;
+    for (const key of keys) {
+      const val = o[key];
+      if (Array.isArray(val)) return val as T[];
+    }
+    if (o.data && typeof o.data === "object") {
+      return parseListResponse<T>(o.data);
+    }
   }
   return [];
 }
