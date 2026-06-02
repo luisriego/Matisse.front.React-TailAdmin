@@ -5,6 +5,7 @@ import { fetchActiveResidentUnits } from "../../utils/fetchActiveResidentUnits";
 import { createResidentUnitsBatch } from "../../utils/createResidentUnitsBatch";
 import { prefetchCatalogTypes } from "../../utils/catalogCache";
 import type { ParsedResidentUnitDraft } from "../../utils/parseBulkResidentUnitLines";
+import type { SetupStatusPayload } from "../../types/setupApi";
 import {
   missingSetupItems,
   SETUP_STEP_LABELS,
@@ -17,7 +18,7 @@ interface SetupWizardProps {
   catalogs: SetupCatalogs;
   bannerMessage?: string;
   refreshing?: boolean;
-  onRefresh: () => Promise<void>;
+  onRefresh: () => Promise<SetupStatusPayload | null>;
 }
 
 function StepIndicator({ current }: { current: SetupBasicStep }) {
@@ -173,7 +174,7 @@ function TypesStep({
   refreshing,
 }: {
   catalogs: SetupCatalogs;
-  onRefresh: () => Promise<void>;
+  onRefresh: () => Promise<SetupStatusPayload | null>;
   onContinue: () => void;
   refreshing: boolean;
 }) {
@@ -349,8 +350,8 @@ export default function SetupWizard({
     setStep(initialStep);
   }, [initialStep]);
 
-  const handleRefresh = useCallback(async () => {
-    await onRefresh();
+  const handleRefresh = useCallback(async (): Promise<SetupStatusPayload | null> => {
+    return await onRefresh();
   }, [onRefresh]);
 
   const handleTypesContinue = useCallback(() => {

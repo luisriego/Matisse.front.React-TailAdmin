@@ -50,11 +50,11 @@ export function useSetupGate(token: string | null) {
   const [state, setState] = useState<SetupGateState>(idle);
   const hasLoadedRef = useRef(false);
 
-  const refresh = useCallback(async (): Promise<void> => {
+  const refresh = useCallback(async (): Promise<SetupStatusPayload | null> => {
     if (!token) {
       hasLoadedRef.current = false;
       setState({ ...idle, loading: false });
-      return;
+      return null;
     }
 
     const isInitial = !hasLoadedRef.current;
@@ -99,6 +99,7 @@ export function useSetupGate(token: string | null) {
           "",
         error: null,
       });
+      return apiStatus;
     } catch (e) {
       if (e instanceof SetupStatusFetchError && e.statusCode === 401) {
         localStorage.removeItem("token");
@@ -106,7 +107,7 @@ export function useSetupGate(token: string | null) {
         clearSetupUnitBypass();
         hasLoadedRef.current = false;
         setState({ ...idle, loading: false, unauthorized: true });
-        return;
+        return null;
       }
       hasLoadedRef.current = true;
       setState((s) => ({
@@ -118,6 +119,7 @@ export function useSetupGate(token: string | null) {
             ? e.message
             : "Falha ao verificar configuração inicial",
       }));
+      return null;
     }
   }, [token]);
 
