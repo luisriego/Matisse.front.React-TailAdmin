@@ -1,37 +1,34 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { fetchExistingGasPriceCents } from "./fetchExistingGasPriceCents";
 
 describe("fetchExistingGasPriceCents", () => {
   it("extrai snake_case do JSON directo", async () => {
-    globalThis.fetch = (): Promise<Response> =>
-      Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            price_per_m3_in_cents: 2600,
-          }),
-      }) as unknown as Response;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          price_per_m3_in_cents: 2600,
+        }),
+    });
     await expect(fetchExistingGasPriceCents("t")).resolves.toBe(2600);
   });
 
   it("extrai camelCase e envelope data", async () => {
-    globalThis.fetch = (): Promise<Response> =>
-      Promise.resolve({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            data: { pricePerM3InCents: 587 },
-          }),
-      }) as unknown as Response;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          data: { pricePerM3InCents: 587 },
+        }),
+    });
     await expect(fetchExistingGasPriceCents("t")).resolves.toBe(587);
   });
 
   it("404 devolve null", async () => {
-    globalThis.fetch = (): Promise<Response> =>
-      Promise.resolve({
-        ok: false,
-        status: 404,
-      }) as unknown as Response;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+    });
     await expect(fetchExistingGasPriceCents("t")).resolves.toBe(null);
   });
 });
