@@ -3,7 +3,7 @@ import { fetchExistingGasPriceCents } from "./fetchExistingGasPriceCents";
 
 describe("fetchExistingGasPriceCents", () => {
   it("extrai snake_case do JSON directo", async () => {
-    global.fetch = (): Promise<Response> =>
+    globalThis.fetch = (): Promise<Response> =>
       Promise.resolve({
         ok: true,
         json: () =>
@@ -15,7 +15,7 @@ describe("fetchExistingGasPriceCents", () => {
   });
 
   it("extrai camelCase e envelope data", async () => {
-    global.fetch = (): Promise<Response> =>
+    globalThis.fetch = (): Promise<Response> =>
       Promise.resolve({
         ok: true,
         json: () =>
@@ -27,7 +27,7 @@ describe("fetchExistingGasPriceCents", () => {
   });
 
   it("404 devolve null", async () => {
-    global.fetch = (): Promise<Response> =>
+    globalThis.fetch = (): Promise<Response> =>
       Promise.resolve({
         ok: false,
         status: 404,

@@ -66,7 +66,7 @@ export function resolveBillingPolicyFromSnapshots(
   const priorYm = Object.keys(snapshots)
     .filter((k) => isValidTargetMonth(k) && k < targetMonth)
     .sort()
-    .at(-1);
+    .at(-1) as string | undefined;
 
   if (!priorYm) return empty;
 
