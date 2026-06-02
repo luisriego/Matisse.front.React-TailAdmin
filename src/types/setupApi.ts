@@ -7,7 +7,18 @@ export type SetupStepKey =
   /** Passo 5 — POST /api/v1/setup/opening-reference-month (`setup.opening_reference_month.was.recorded`). */
   | "openingReferenceMonth";
 
-export type SetupStepsState = Partial<Record<SetupStepKey, boolean>>;
+export type SetupStepsState = Partial<Record<SetupStepKey, SetupStepStatus>>;
+
+/** Lê um passo do blob `steps` (Symfony usa strings; o cliente também aceita boolean). */
+export function getSetupStepStatus(
+  steps: SetupStatusPayload["steps"] | undefined,
+  key: SetupStepKey,
+): SetupStepStatus | undefined {
+  if (!steps || typeof steps !== "object" || Array.isArray(steps)) {
+    return undefined;
+  }
+  return (steps as Record<string, SetupStepStatus>)[key];
+}
 
 /** Regra de rateio síndico no POST de abertura (igual aos valores snake do backend). */
 export type SyndicAllocationRuleApi =
@@ -27,13 +38,17 @@ export interface OpeningReferenceMonthRequest {
 
 /** Último registo persistido (`GET /setup/status` → openingReference). */
 export type OpeningReferenceStatus = OpeningReferenceMonthRequest & {
-  recordedAt: string;
+  recordedAt?: string;
+  recorded_at?: string;
+  reference_month?: string;
 };
+
+export type SetupStepStatus = boolean | "complete" | "pending" | string;
 
 export interface SetupStatusPayload {
   complete: boolean;
   currentStep: number | string;
-  steps: SetupStepsState | Record<string, unknown> | string[];
+  steps: SetupStepsState | Record<string, SetupStepStatus> | string[];
   message?: string;
   /** Ditado pelo backend; ausente ou null até ao primeiro POST. */
   openingReference?: OpeningReferenceStatus | null;

@@ -30,21 +30,10 @@ export function shouldMarkBusinessSetupComplete(
   if (status.complete === true) return true;
   const o = status.openingReference;
   if (o !== null && o !== undefined && typeof o === "object") {
-    const raw = o as Record<string, unknown>;
-    const recAt =
-      typeof raw.recordedAt === "string"
-        ? raw.recordedAt
-        : typeof raw.recorded_at === "string"
-          ? (raw.recorded_at as string)
-          : "";
-    if (recAt.trim() !== "") return true;
-    const rm =
-      typeof raw.referenceMonth === "string"
-        ? raw.referenceMonth
-        : typeof raw.reference_month === "string"
-          ? (raw.reference_month as string)
-          : "";
-    return /^\d{4}-\d{2}$/.test(rm.trim());
+    const recAt = (o.recordedAt ?? o.recorded_at ?? "").trim();
+    if (recAt !== "") return true;
+    const rm = (o.referenceMonth ?? o.reference_month ?? "").trim();
+    return /^\d{4}-\d{2}$/.test(rm);
   }
   return false;
 }

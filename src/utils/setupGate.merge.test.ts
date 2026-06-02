@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { getSetupStepStatus } from "../types/setupApi";
 import {
   mergeSetupStatusFromStorage,
   prepareSetupStatusFromFetch,
@@ -25,7 +26,7 @@ describe("mergeSetupStatusFromStorage", () => {
     };
     const merged = mergeSetupStatusFromStorage(api, stored);
     expect(merged.complete).toBe(true);
-    expect(merged.steps?.gasPrice).toBe("complete");
+    expect(getSetupStepStatus(merged.steps, "gasPrice")).toBe("complete");
   });
 
   it("prepareSetupStatusFromFetch devolve API intacta quando complete", () => {
@@ -54,7 +55,7 @@ describe("mergeSetupStatusFromStorage", () => {
       steps: { gasPrice: "pending", gasReadings: "pending" },
     };
     const merged = mergeSetupStatusFromStorage(api, stored);
-    expect(merged.steps?.gasPrice).toBe("complete");
-    expect(merged.steps?.gasReadings).toBe("pending");
+    expect(getSetupStepStatus(merged.steps, "gasPrice")).toBe("complete");
+    expect(getSetupStepStatus(merged.steps, "gasReadings")).toBe("pending");
   });
 });

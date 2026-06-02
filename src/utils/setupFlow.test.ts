@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ResidentUnit } from "../types/residentUnit";
-import type { SetupStatusPayload } from "../types/setupApi";
+import { getSetupStepStatus, type SetupStatusPayload } from "../types/setupApi";
 import {
   prepareSetupStatusFromFetch,
   mergeSetupStatusFromStorage,
@@ -66,8 +66,8 @@ describe("setupFlow — gás guardado no servidor", () => {
   it("prepareSetupStatusFromFetch ignora sessionStorage quando API diz complete", () => {
     const prepared = prepareSetupStatusFromFetch(gasCompleteStatus, stale403Setup);
     expect(prepared.complete).toBe(true);
-    expect(prepared.steps?.gasPrice).toBe("complete");
-    expect(prepared.steps?.gasReadings).toBe("complete");
+    expect(getSetupStepStatus(prepared.steps, "gasPrice")).toBe("complete");
+    expect(getSetupStepStatus(prepared.steps, "gasReadings")).toBe("complete");
   });
 
   it("resolveSetupGateFlags liberta a app após gás (catálogos OK + API complete)", () => {
@@ -98,8 +98,8 @@ describe("setupFlow — gás guardado no servidor", () => {
       },
     };
     const merged = mergeSetupStatusFromStorage(api, stale403Setup);
-    expect(merged.steps?.gasPrice).toBe("complete");
-    expect(merged.steps?.gasReadings).toBe("pending");
+    expect(getSetupStepStatus(merged.steps, "gasPrice")).toBe("complete");
+    expect(getSetupStepStatus(merged.steps, "gasReadings")).toBe("pending");
     expect(needsCoreSetup(merged)).toBe(true);
   });
 

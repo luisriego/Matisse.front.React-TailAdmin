@@ -21,21 +21,10 @@ function flagTrue(record: Record<string, unknown>, key: string): boolean {
 function hasOpeningReferenceOnStatus(status: SetupStatusPayload): boolean {
   const o = status.openingReference;
   if (o === null || o === undefined || typeof o !== "object") return false;
-  const recAt =
-    typeof (o as { recordedAt?: unknown }).recordedAt === "string"
-      ? (o as { recordedAt: string }).recordedAt
-      : typeof (o as { recorded_at?: unknown }).recorded_at === "string"
-        ? (o as { recorded_at: string }).recorded_at
-        : "";
-  if (recAt.trim() !== "") return true;
-  const rm =
-    typeof (o as { referenceMonth?: unknown }).referenceMonth === "string"
-      ? (o as { referenceMonth: string }).referenceMonth
-      : typeof (o as { reference_month?: unknown }).reference_month ===
-          "string"
-        ? (o as { reference_month: string }).reference_month
-        : "";
-  return typeof rm === "string" && /^\d{4}-\d{2}$/.test(rm.trim());
+  const recAt = (o.recordedAt ?? o.recorded_at ?? "").trim();
+  if (recAt !== "") return true;
+  const rm = (o.referenceMonth ?? o.reference_month ?? "").trim();
+  return /^\d{4}-\d{2}$/.test(rm);
 }
 
 /**

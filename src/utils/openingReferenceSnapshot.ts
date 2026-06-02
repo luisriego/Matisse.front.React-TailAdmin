@@ -146,7 +146,7 @@ export function openingReferenceSnapshotMatchesRequest(
     return false;
 
   const fromServer = buildOpeningReferenceRequestFromOpeningReferenceObject(
-    raw as Record<string, unknown>,
+    raw as unknown as Record<string, unknown>,
   );
   return fromServer !== null && openingReferenceRequestsEqual(fromServer, body);
 }
