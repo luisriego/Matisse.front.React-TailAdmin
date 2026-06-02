@@ -59,7 +59,7 @@ export function uiValuesToPutRequest(values: MonthConventionValues) {
     extraFeePerUnitCents: extra,
     reserveFundPerUnitCents: reserve,
     syndicShareTotalCents: syndic,
-    syndicAllocationRule: "equal_parts",
+    syndicAllocationRule: "equal_parts" as const,
     gasPricePerM3Cents: gas,
   };
 }
