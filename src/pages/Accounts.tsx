@@ -370,7 +370,7 @@ export default function Accounts() {
   return (
     <>
       <PageMeta
-        title="Contas | TailAdmin - React.js Admin Dashboard Template"
+        title="Contas | Matisse"
         description="Página de listagem de contas"
       />
       <PageBreadcrumb pageTitle="Contas" />

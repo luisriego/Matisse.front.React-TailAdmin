@@ -6,8 +6,8 @@ export default function SignIn() {
   return (
     <>
       <PageMeta
-        title="React.js SignIn Dashboard | Matisse - Next.js Admin Dashboard Template"
-        description="This is React.js SignIn Tables Dashboard page for Matisse - React.js Tailwind CSS Admin Dashboard Template"
+        title="Entrar | Matisse"
+        description="Acesse sua conta Matisse"
       />
       <AuthLayout>
         <SignInForm />

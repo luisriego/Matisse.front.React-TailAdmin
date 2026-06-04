@@ -93,7 +93,7 @@ export default function Users() {
   return (
     <>
       <PageMeta
-        title="Usuários | TailAdmin - React.js Admin Dashboard Template"
+        title="Usuários | Matisse"
         description="Página de listagem de usuários"
       />
       <PageBreadcrumb pageTitle="Usuários" />
