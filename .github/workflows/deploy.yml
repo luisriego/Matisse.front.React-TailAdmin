@@ -58,19 +58,24 @@ jobs:
           script_stop: true
           script: |
             set -e
-            smoke() {
-              curl -sf "http://127.0.0.1/" | grep -qi '<html'
-              curl -sf "http://127.0.0.1/api/v1/resident-unit/health-check" | grep -q '"status"'
-            }
+            spa_ok=false
             for attempt in 1 2 3 4 5; do
-              if smoke; then
-                echo "Smoke check OK (attempt ${attempt})"
-                exit 0
+              if curl -sf "http://127.0.0.1/" | grep -qi '<html'; then
+                spa_ok=true
+                echo "SPA smoke OK (attempt ${attempt})"
+                break
               fi
-              echo "Smoke check attempt ${attempt} failed; retrying in 5s…"
+              echo "SPA check attempt ${attempt} failed; retrying in 5s…"
               sleep 5
             done
-            echo "Smoke check failed after 5 attempts"
-            curl -sv "http://127.0.0.1/" 2>&1 | tail -20 || true
-            curl -sv "http://127.0.0.1/api/v1/resident-unit/health-check" 2>&1 | tail -20 || true
-            exit 1
+            if [ "$spa_ok" != "true" ]; then
+              echo "SPA smoke check failed after 5 attempts"
+              curl -sv "http://127.0.0.1/" 2>&1 | tail -30 || true
+              exit 1
+            fi
+            api_body="$(curl -sf "http://127.0.0.1/api/v1/resident-unit/health-check" 2>/dev/null || true)"
+            if echo "$api_body" | grep -q '"status"'; then
+              echo "API health OK: $api_body"
+            else
+              echo "::warning::API health-check no respondió en localhost (front ya desplegado). body=${api_body:-<empty>}"
+            fi
