@@ -48,34 +48,27 @@ jobs:
           strip_components: 1
           overwrite: true
 
-      - name: Smoke check (SPA + API proxy)
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: 22
-          script_stop: true
-          script: |
-            set -e
-            spa_ok=false
-            for attempt in 1 2 3 4 5; do
-              if curl -sf "http://127.0.0.1/" | grep -qi '<html'; then
-                spa_ok=true
-                echo "SPA smoke OK (attempt ${attempt})"
-                break
-              fi
-              echo "SPA check attempt ${attempt} failed; retrying in 5s…"
-              sleep 5
-            done
-            if [ "$spa_ok" != "true" ]; then
-              echo "SPA smoke check failed after 5 attempts"
-              curl -sv "http://127.0.0.1/" 2>&1 | tail -30 || true
-              exit 1
+      - name: Smoke check (production URL)
+        run: |
+          set -e
+          BASE="https://matisse.luisriego.dev"
+          spa_ok=false
+          for attempt in 1 2 3 4 5; do
+            if curl -sf "${BASE}/" | grep -qi '<html'; then
+              spa_ok=true
+              echo "SPA smoke OK (attempt ${attempt})"
+              break
             fi
-            api_body="$(curl -sf "http://127.0.0.1/api/v1/resident-unit/health-check" 2>/dev/null || true)"
-            if echo "$api_body" | grep -q '"status"'; then
-              echo "API health OK: $api_body"
-            else
-              echo "::warning::API health-check no respondió en localhost (front ya desplegado). body=${api_body:-<empty>}"
-            fi
+            echo "SPA check attempt ${attempt} failed; retrying in 5s…"
+            sleep 5
+          done
+          if [ "$spa_ok" != "true" ]; then
+            echo "SPA smoke check failed against ${BASE}"
+            exit 1
+          fi
+          api_body="$(curl -sf "${BASE}/api/v1/resident-unit/health-check" 2>/dev/null || true)"
+          if echo "$api_body" | grep -q '"status"'; then
+            echo "API health OK: $api_body"
+          else
+            echo "::warning::API health-check no respondió. body=${api_body:-<empty>}"
+          fi
