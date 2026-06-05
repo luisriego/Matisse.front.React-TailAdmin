@@ -57,5 +57,20 @@ jobs:
           port: 22
           script_stop: true
           script: |
-            curl -sf "http://127.0.0.1/" | grep -qi '<html'
-            curl -sf "http://127.0.0.1/api/v1/resident-unit/health-check" | grep -q '"status"'
+            set -e
+            smoke() {
+              curl -sf "http://127.0.0.1/" | grep -qi '<html'
+              curl -sf "http://127.0.0.1/api/v1/resident-unit/health-check" | grep -q '"status"'
+            }
+            for attempt in 1 2 3 4 5; do
+              if smoke; then
+                echo "Smoke check OK (attempt ${attempt})"
+                exit 0
+              fi
+              echo "Smoke check attempt ${attempt} failed; retrying in 5s…"
+              sleep 5
+            done
+            echo "Smoke check failed after 5 attempts"
+            curl -sv "http://127.0.0.1/" 2>&1 | tail -20 || true
+            curl -sv "http://127.0.0.1/api/v1/resident-unit/health-check" 2>&1 | tail -20 || true
+            exit 1
