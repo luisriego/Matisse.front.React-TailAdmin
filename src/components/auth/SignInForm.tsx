@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "../../icons";
 import Label from "../form/Label";
 import Input from "../form/input/InputField";
@@ -17,8 +17,28 @@ export default function SignInForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get("error") === "activation_failed") {
+      setError("Link de ativação inválido ou expirado.");
+      setInfo("");
+      const next = new URLSearchParams(searchParams);
+      next.delete("error");
+      setSearchParams(next, { replace: true });
+      return;
+    }
+    if (searchParams.get("message") === "password_set") {
+      setInfo("Senha definida. Faça login.");
+      setError("");
+      const next = new URLSearchParams(searchParams);
+      next.delete("message");
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -127,6 +147,11 @@ export default function SignInForm() {
                     </span>
                   </div>
                 </div>
+                {info && (
+                  <div className="p-3 text-sm text-center text-green-800 rounded-lg bg-green-50 dark:bg-green-900/20 dark:text-green-300">
+                    {info}
+                  </div>
+                )}
                 {error && (
                   <div className="text-sm text-center text-error-500">
                     {error}

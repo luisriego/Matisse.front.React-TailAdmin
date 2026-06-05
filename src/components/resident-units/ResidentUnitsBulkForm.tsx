@@ -10,6 +10,7 @@ import {
   sumFractionInputs,
   validateDraftRows,
   type ResidentUnitDraftRow,
+  type RowFieldErrors,
 } from "../../utils/residentUnitDraftForm";
 
 const inputClass =
@@ -32,9 +33,9 @@ export default function ResidentUnitsBulkForm({
     createDefaultDraftRows(3),
   );
   const [formError, setFormError] = useState<string | null>(null);
-  const [rowErrors, setRowErrors] = useState<
-    Record<string, { unit?: string; idealFraction?: string }>
-  >({});
+  const [rowErrors, setRowErrors] = useState<Record<string, RowFieldErrors>>(
+    {},
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fractionSum = useMemo(() => sumFractionInputs(rows), [rows]);
@@ -43,7 +44,9 @@ export default function ResidentUnitsBulkForm({
 
   const updateRow = (
     key: string,
-    patch: Partial<Pick<ResidentUnitDraftRow, "unit" | "idealFraction">>,
+    patch: Partial<
+      Pick<ResidentUnitDraftRow, "unit" | "idealFraction" | "email" | "name">
+    >,
   ) => {
     setRows((prev) =>
       prev.map((r) => (r.key === key ? { ...r, ...patch } : r)),
@@ -170,11 +173,17 @@ export default function ResidentUnitsBulkForm({
         <table className="min-w-full text-sm">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50 text-left dark:border-gray-700 dark:bg-gray-800/50">
-              <th className="px-3 py-2.5 font-medium text-gray-600 dark:text-gray-400 w-[45%]">
+              <th className="px-3 py-2.5 font-medium text-gray-600 dark:text-gray-400">
                 Unidade
               </th>
-              <th className="px-3 py-2.5 font-medium text-gray-600 dark:text-gray-400 w-[40%]">
+              <th className="px-3 py-2.5 font-medium text-gray-600 dark:text-gray-400">
                 Fração ideal
+              </th>
+              <th className="px-3 py-2.5 font-medium text-gray-600 dark:text-gray-400">
+                E-mail do morador
+              </th>
+              <th className="px-3 py-2.5 font-medium text-gray-600 dark:text-gray-400">
+                Nome <span className="font-normal text-gray-400">(opc.)</span>
               </th>
               <th className="px-3 py-2.5 w-12" aria-label="Ações" />
             </tr>
@@ -228,6 +237,36 @@ export default function ResidentUnitsBulkForm({
                         {errs.idealFraction}
                       </p>
                     ) : null}
+                  </td>
+                  <td className="px-3 py-2 align-top">
+                    <input
+                      type="email"
+                      value={row.email}
+                      onChange={(e) =>
+                        updateRow(row.key, { email: e.target.value })
+                      }
+                      placeholder="morador@exemplo.com"
+                      disabled={isSubmitting}
+                      aria-invalid={!!errs?.email}
+                      className={`${inputClass} ${errs?.email ? "border-red-400 focus:border-red-400 focus:ring-red-500/20" : ""}`}
+                    />
+                    {errs?.email ? (
+                      <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                        {errs.email}
+                      </p>
+                    ) : null}
+                  </td>
+                  <td className="px-3 py-2 align-top">
+                    <input
+                      type="text"
+                      value={row.name}
+                      onChange={(e) =>
+                        updateRow(row.key, { name: e.target.value })
+                      }
+                      placeholder="João Silva"
+                      disabled={isSubmitting}
+                      className={inputClass}
+                    />
                   </td>
                   <td className="px-2 py-2 align-top">
                     <button

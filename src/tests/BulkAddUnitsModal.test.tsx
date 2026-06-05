@@ -14,6 +14,10 @@ function fractionInputs(): HTMLInputElement[] {
   return screen.getAllByPlaceholderText("0,2576");
 }
 
+function emailInputs(): HTMLInputElement[] {
+  return screen.getAllByPlaceholderText(/morador@exemplo/i);
+}
+
 describe("BulkAddUnitsModal Integration", () => {
   const onUnitsAddedMock = vi.fn();
   const onCloseMock = vi.fn();
@@ -89,6 +93,12 @@ describe("BulkAddUnitsModal Integration", () => {
     const units = unitInputs();
     fireEvent.change(units[0]!, { target: { value: "Apto 101" } });
     fireEvent.change(units[1]!, { target: { value: "Apto 102" } });
+    fireEvent.change(emailInputs()[0]!, {
+      target: { value: "a101@example.com" },
+    });
+    fireEvent.change(emailInputs()[1]!, {
+      target: { value: "a102@example.com" },
+    });
     fireEvent.click(screen.getByRole("button", { name: /Repartir frações igualmente/i }));
 
     fireEvent.click(screen.getByRole("button", { name: /Inicializar Edifício/i }));

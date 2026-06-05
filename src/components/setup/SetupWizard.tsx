@@ -147,8 +147,11 @@ function UnitsStep({
         Passo 1 — Unidades residenciais
       </h2>
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-        Registe cada unidade com a respetiva fração ideal. A soma de todas as
-        frações deve ser 1,0000.
+        Registe cada unidade com fração ideal e e-mail do morador (convite por
+        correio). A soma das frações deve ser 1,0000. Importação em texto:{" "}
+        <span className="font-mono text-xs">
+          Apto. 401 - 0,145678 - email@dominio.com
+        </span>
       </p>
 
       {info && (

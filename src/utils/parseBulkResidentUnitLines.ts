@@ -1,9 +1,17 @@
 export type ParsedResidentUnitDraft = {
   unit: string;
   idealFraction: number;
+  email: string;
+  name?: string;
 };
 
 const UNIT_MAX_LEN = 10;
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function isValidResidentEmail(email: string): boolean {
+  return EMAIL_RE.test(email.trim());
+}
 
 function parseFractionToken(raw: string): number | null {
   const trimmed = raw.trim();
@@ -18,6 +26,27 @@ function parseFractionToken(raw: string): number | null {
   return n;
 }
 
+function splitLineTokens(line: string): string[] {
+  const trimmed = line.trim();
+  if (/\s-\s/.test(trimmed)) {
+    return trimmed.split(/\s*-\s*/).map((p) => p.trim()).filter(Boolean);
+  }
+
+  const parts = trimmed
+    .split(/[,;\t]/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  if (parts.length >= 4 && /@/.test(parts[parts.length - 1]!)) {
+    const email = parts.pop()!;
+    const unit = parts.shift()!;
+    const fractionRaw = parts.join(",");
+    return [unit, fractionRaw, email];
+  }
+
+  return parts;
+}
+
 /** Reparte 1.0 em partes iguais; última unidade absorve arredondamento. */
 export function distributeEqualIdealFractions(count: number): number[] {
   if (count <= 0) return [];
@@ -30,17 +59,22 @@ export function distributeEqualIdealFractions(count: number): number[] {
 }
 
 /**
- * Linhas: `Apto 501,0.2576` ou só `101` (fração igual 1/N).
- * Formato do sample: samples/cinco-apartamentos.txt
+ * Linhas: `Apto 501,0.2576,email@exemplo.com` ou
+ * `Apto. 401 - 0,145678 - email@dominio.com` ou só `101` (fração 1/N; e-mail no formulário).
  */
 export function parseBulkResidentUnitLines(lines: string[]): ParsedResidentUnitDraft[] {
   const trimmed = lines.map((l) => l.trim()).filter((l) => l.length > 0);
   if (trimmed.length === 0) return [];
 
-  const drafts: Array<{ unit: string; idealFraction: number | null }> = [];
+  const drafts: Array<{
+    unit: string;
+    idealFraction: number | null;
+    email: string;
+    name?: string;
+  }> = [];
 
   for (const line of trimmed) {
-    const parts = line.split(/[,;\t]/).map((p) => p.trim()).filter(Boolean);
+    const parts = splitLineTokens(line);
     if (parts.length === 0) continue;
 
     const unit = parts[0]!;
@@ -50,29 +84,53 @@ export function parseBulkResidentUnitLines(lines: string[]): ParsedResidentUnitD
       );
     }
 
+    let idealFraction: number | null = null;
+    let email = "";
+    let name: string | undefined;
+
     if (parts.length >= 2) {
-      const idealFraction = parseFractionToken(parts[1]!);
+      idealFraction = parseFractionToken(parts[1]!);
       if (idealFraction === null) {
         throw new Error(
           `Fração ideal inválida na linha "${line}". Use formato como 0,2576 ou 0.2576.`,
         );
       }
-      drafts.push({ unit, idealFraction });
-    } else {
-      drafts.push({ unit, idealFraction: null });
     }
+
+    if (parts.length >= 3) {
+      email = parts[2]!.trim();
+      if (!isValidResidentEmail(email)) {
+        throw new Error(`E-mail inválido na linha "${line}".`);
+      }
+    }
+
+    if (parts.length >= 4) {
+      name = parts.slice(3).join(" ").trim() || undefined;
+    }
+
+    drafts.push({ unit, idealFraction, email, name });
   }
 
   if (drafts.length === 0) return [];
 
   const allHaveFraction = drafts.every((d) => d.idealFraction !== null);
   const noneHaveFraction = drafts.every((d) => d.idealFraction === null);
+  const allHaveEmail = drafts.every((d) => d.email.length > 0);
+  const anyHaveEmail = drafts.some((d) => d.email.length > 0);
+
+  if (anyHaveEmail && !allHaveEmail) {
+    throw new Error(
+      "Formato inconsistente: indique e-mail em todas as linhas ou em nenhuma (preencha no formulário).",
+    );
+  }
 
   if (noneHaveFraction) {
     const fractions = distributeEqualIdealFractions(drafts.length);
     return drafts.map((d, i) => ({
       unit: d.unit,
       idealFraction: fractions[i]!,
+      email: d.email,
+      ...(d.name ? { name: d.name } : {}),
     }));
   }
 
@@ -82,17 +140,27 @@ export function parseBulkResidentUnitLines(lines: string[]): ParsedResidentUnitD
     );
   }
 
-  return drafts as ParsedResidentUnitDraft[];
+  return drafts.map((d) => ({
+    unit: d.unit,
+    idealFraction: d.idealFraction!,
+    email: d.email,
+    ...(d.name ? { name: d.name } : {}),
+  }));
 }
 
-export function buildResidentUnitCreateBody(draft: ParsedResidentUnitDraft): Record<string, unknown> {
+export function buildResidentUnitCreateBody(
+  draft: ParsedResidentUnitDraft,
+): Record<string, unknown> {
   const id = crypto.randomUUID();
-  const idealFraction =
-    Math.round(draft.idealFraction * 1e8) / 1e8;
-  return {
+  const idealFraction = Math.round(draft.idealFraction * 1e8) / 1e8;
+  const body: Record<string, unknown> = {
     id,
     unit: draft.unit,
     idealFraction,
-    notificationRecipients: [],
+    email: draft.email.trim(),
   };
+  if (draft.name?.trim()) {
+    body.name = draft.name.trim();
+  }
+  return body;
 }

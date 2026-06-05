@@ -33,8 +33,16 @@ describe("residentUnitDraftForm", () => {
 
   it("exige soma 1 antes de submeter", () => {
     const rows = [
-      newDraftRow({ unit: "101", idealFraction: "0.5" }),
-      newDraftRow({ unit: "102", idealFraction: "0.3" }),
+      newDraftRow({
+        unit: "101",
+        idealFraction: "0.5",
+        email: "a@example.com",
+      }),
+      newDraftRow({
+        unit: "102",
+        idealFraction: "0.3",
+        email: "b@example.com",
+      }),
     ];
     const v = validateDraftRows(rows);
     expect(v.formError).toMatch(/soma/i);
@@ -45,9 +53,19 @@ describe("residentUnitDraftForm", () => {
       ...r,
       unit: `Apto ${101 + i}`,
       idealFraction: i === 0 ? "0.6" : "0.4",
+      email: `morador${101 + i}@example.com`,
     }));
     const drafts = rowsToParsedDrafts(rows);
     expect(drafts).toHaveLength(2);
     expect(drafts[0]?.idealFraction).toBe(0.6);
+    expect(drafts[0]?.email).toBe("morador101@example.com");
+  });
+
+  it("exige e-mail em cada unidade", () => {
+    const rows = [
+      newDraftRow({ unit: "101", idealFraction: "1", email: "" }),
+    ];
+    const v = validateDraftRows(rows);
+    expect(v.rowErrors[rows[0]!.key]?.email).toMatch(/obrigatório/i);
   });
 });

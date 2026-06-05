@@ -12,8 +12,24 @@ describe("parseBulkResidentUnitLines", () => {
       "Apto 101,0.1813",
     ]);
     expect(rows).toHaveLength(3);
-    expect(rows[0]).toEqual({ unit: "Apto 501", idealFraction: 0.2576 });
+    expect(rows[0]).toEqual({
+      unit: "Apto 501",
+      idealFraction: 0.2576,
+      email: "",
+    });
     expect(rows[1]?.idealFraction).toBe(0.1813);
+  });
+
+  it("parseia formato com traços e e-mail", () => {
+    const rows = parseBulkResidentUnitLines([
+      "Apto. 401 - 0,145678 - residente@example.com",
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      unit: "Apto. 401",
+      idealFraction: 0.145678,
+      email: "residente@example.com",
+    });
   });
 
   it("reparte 1/N quando só há nomes de unidade", () => {
@@ -28,6 +44,12 @@ describe("parseBulkResidentUnitLines", () => {
     expect(() =>
       parseBulkResidentUnitLines(["Apto 101,0.2", "Apto 102"]),
     ).toThrow(/inconsistente/i);
+  });
+
+  it("rejeita e-mail inválido", () => {
+    expect(() =>
+      parseBulkResidentUnitLines(["Apto 101,0.2,not-an-email"]),
+    ).toThrow(/E-mail inválido/i);
   });
 });
 

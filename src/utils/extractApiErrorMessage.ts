@@ -29,3 +29,19 @@ export function translateResidentUnitCreateError(
   }
   return message.includes(unit) ? message : `${message} (unidade: ${unit})`;
 }
+
+export function translateResidentUnitCreateHttpError(
+  status: number,
+  message: string,
+  unit: string,
+): string {
+  if (status === 409) {
+    if (/email|e-mail|correio/i.test(message)) {
+      return message.trim()
+        ? message
+        : `O e-mail indicado para «${unit}» já está registado. Use outro e-mail.`;
+    }
+    return message.trim() || `Conflito ao criar «${unit}» (e-mail ou unidade duplicada).`;
+  }
+  return translateResidentUnitCreateError(message, unit);
+}

@@ -42,7 +42,8 @@ const BulkAddUnitsModal: React.FC<BulkAddUnitsModalProps> = ({ isOpen, onClose, 
             Inicializar Edifício (Em Massa)
           </h4>
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            Indique cada unidade e a respetiva fração ideal. A soma de todas as frações deve ser 1,0000.
+            Indique unidade, fração ideal e e-mail do morador. A soma das frações
+            deve ser 1,0000.
           </p>
         </div>
 

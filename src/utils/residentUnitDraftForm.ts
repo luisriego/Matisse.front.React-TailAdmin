@@ -1,5 +1,6 @@
 import {
   distributeEqualIdealFractions,
+  isValidResidentEmail,
   parseBulkResidentUnitLines,
   type ParsedResidentUnitDraft,
 } from "./parseBulkResidentUnitLines";
@@ -10,21 +11,28 @@ export type ResidentUnitDraftRow = {
   key: string;
   unit: string;
   idealFraction: string;
+  email: string;
+  name: string;
 };
 
 export type RowFieldErrors = {
   unit?: string;
   idealFraction?: string;
+  email?: string;
 };
 
 let rowKeyCounter = 0;
 
-export function newDraftRow(partial?: Partial<ResidentUnitDraftRow>): ResidentUnitDraftRow {
+export function newDraftRow(
+  partial?: Partial<ResidentUnitDraftRow>,
+): ResidentUnitDraftRow {
   rowKeyCounter += 1;
   return {
     key: partial?.key ?? `row-${rowKeyCounter}`,
     unit: partial?.unit ?? "",
     idealFraction: partial?.idealFraction ?? "",
+    email: partial?.email ?? "",
+    name: partial?.name ?? "",
   };
 }
 
@@ -61,8 +69,7 @@ export function applyEqualFractionsToRows(
   const fractions = distributeEqualIdealFractions(target.length);
   let i = 0;
   return rows.map((row) => {
-    const isTarget =
-      filled.length > 0 ? row.unit.trim() !== "" : true;
+    const isTarget = filled.length > 0 ? row.unit.trim() !== "" : true;
     if (!isTarget) return row;
     const fraction = fractions[i]!;
     i += 1;
@@ -80,7 +87,12 @@ export function draftsFromTextLines(text: string): ResidentUnitDraftRow[] {
     .filter((l) => l.length > 0);
   const parsed = parseBulkResidentUnitLines(lines);
   return parsed.map((d) =>
-    newDraftRow({ unit: d.unit, idealFraction: String(d.idealFraction) }),
+    newDraftRow({
+      unit: d.unit,
+      idealFraction: String(d.idealFraction),
+      email: d.email,
+      name: d.name ?? "",
+    }),
   );
 }
 
@@ -89,7 +101,13 @@ export function validateDraftRows(rows: ResidentUnitDraftRow[]): {
   formError: string | null;
 } {
   const rowErrors: Record<string, RowFieldErrors> = {};
-  const filled = rows.filter((r) => r.unit.trim() || r.idealFraction.trim());
+  const filled = rows.filter(
+    (r) =>
+      r.unit.trim() ||
+      r.idealFraction.trim() ||
+      r.email.trim() ||
+      r.name.trim(),
+  );
 
   if (filled.length === 0) {
     return { rowErrors, formError: "Adicione pelo menos uma unidade." };
@@ -107,6 +125,13 @@ export function validateDraftRows(rows: ResidentUnitDraftRow[]): {
     const fraction = parseFractionInput(row.idealFraction);
     if (fraction === null) {
       errs.idealFraction = "Fração ideal obrigatória (> 0).";
+    }
+
+    const email = row.email.trim();
+    if (!email) {
+      errs.email = "E-mail do morador obrigatório.";
+    } else if (!isValidResidentEmail(email)) {
+      errs.email = "E-mail inválido.";
     }
 
     if (Object.keys(errs).length > 0) {
@@ -140,8 +165,14 @@ export function rowsToParsedDrafts(
 
   return rows
     .filter((r) => r.unit.trim())
-    .map((r) => ({
-      unit: r.unit.trim(),
-      idealFraction: parseFractionInput(r.idealFraction)!,
-    }));
+    .map((r) => {
+      const draft: ParsedResidentUnitDraft = {
+        unit: r.unit.trim(),
+        idealFraction: parseFractionInput(r.idealFraction)!,
+        email: r.email.trim(),
+      };
+      const name = r.name.trim();
+      if (name) draft.name = name;
+      return draft;
+    });
 }

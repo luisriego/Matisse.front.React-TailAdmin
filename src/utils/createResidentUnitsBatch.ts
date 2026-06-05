@@ -1,6 +1,6 @@
 import {
   extractApiErrorMessage,
-  translateResidentUnitCreateError,
+  translateResidentUnitCreateHttpError,
 } from "./extractApiErrorMessage";
 import { fetchActiveResidentUnits } from "./fetchActiveResidentUnits";
 import {
@@ -26,7 +26,9 @@ async function createOneResidentUnit(
       res,
       `Erro ao criar a unidade ${draft.unit}`,
     );
-    throw new Error(translateResidentUnitCreateError(raw, draft.unit));
+    throw new Error(
+      translateResidentUnitCreateHttpError(res.status, raw, draft.unit),
+    );
   }
 }
 
