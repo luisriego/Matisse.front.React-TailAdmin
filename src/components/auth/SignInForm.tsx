@@ -218,7 +218,8 @@ export default function SignInForm() {
                   : "Reenviar confirmação"}
               </button>
               <span className="block mt-1 text-gray-500">
-                Reenvia o e-mail de ativação para o endereço indicado acima.
+                Reenvia o link de ativação da conta (não redefine a senha). Use
+                apenas se ainda não confirmou o e-mail de registo.
               </span>
             </p>
 
