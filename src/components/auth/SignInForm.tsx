@@ -211,13 +211,14 @@ export default function SignInForm() {
                 type="button"
                 onClick={() => void handleResendConfirmation()}
                 disabled={busy}
-                className="text-brand-500 hover:text-brand-600 dark:text-brand-400 disabled:opacity-50"
+                className="font-medium text-brand-500 hover:text-brand-600 dark:text-brand-400 disabled:opacity-50"
               >
-                {isResending ? "A reenviar…" : "Reenviar confirmação"}
-              </button>{" "}
-              <span className="text-gray-500">
-                (usa o e-mail acima se estiver registado; senão nenhuma ação
-                será realizada)
+                {isResending
+                  ? "A reenviar confirmação…"
+                  : "Reenviar confirmação"}
+              </button>
+              <span className="block mt-1 text-gray-500">
+                Reenvia o e-mail de ativação para o endereço indicado acima.
               </span>
             </p>
 

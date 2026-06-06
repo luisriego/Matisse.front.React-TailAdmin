@@ -18,7 +18,7 @@ describe("resendConfirmationEmail", () => {
     expect(fetch).toHaveBeenCalledWith(
       "/api/v1/users/confirmation-resend",
       expect.objectContaining({
-        body: JSON.stringify({ email: "user@example.com" }),
+        body: JSON.stringify({ email: "user@example.com" }), // normalizado a minúsculas
       }),
     );
   });

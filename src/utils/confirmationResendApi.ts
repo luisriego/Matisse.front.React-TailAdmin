@@ -7,7 +7,7 @@ export async function resendConfirmationEmail(email: string): Promise<string> {
   const res = await fetch("/api/v1/users/confirmation-resend", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: email.trim() }),
+    body: JSON.stringify({ email: email.trim().toLowerCase() }),
   });
 
   if (!res.ok) {

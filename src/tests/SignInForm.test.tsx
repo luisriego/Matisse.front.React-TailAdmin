@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { http, HttpResponse } from 'msw';
 import { server } from './mocks/server';
 import SignInForm from '../components/auth/SignInForm';
+import { CONFIRMATION_RESEND_DEFAULT_MESSAGE } from '../utils/confirmationResendApi';
 
 describe('SignInForm Integration', () => {
   beforeEach(() => {
@@ -34,6 +35,32 @@ describe('SignInForm Integration', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Credenciais inválidas')).toBeInTheDocument();
+    });
+  });
+
+  it('reenvia confirmação com o e-mail do formulário', async () => {
+    server.use(
+      http.post('/api/v1/users/confirmation-resend', async ({ request }) => {
+        const body = (await request.json()) as { email?: string };
+        expect(body.email).toBe('morador@example.com');
+        return HttpResponse.json({
+          message: CONFIRMATION_RESEND_DEFAULT_MESSAGE,
+        });
+      }),
+    );
+
+    render(<MemoryRouter><SignInForm /></MemoryRouter>);
+    fireEvent.change(screen.getByPlaceholderText('info@gmail.com'), {
+      target: { value: 'morador@example.com' },
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: /Reenviar confirmação/i }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(CONFIRMATION_RESEND_DEFAULT_MESSAGE),
+      ).toBeInTheDocument();
     });
   });
 
