@@ -40,7 +40,10 @@ export default function SignUpForm() {
         throw new Error(errorData.message || 'Falha ao registrar');
       }
 
-      navigate('/signin'); 
+      navigate(
+        `/confirmation-resend?email=${encodeURIComponent(email.trim())}`,
+        { replace: true },
+      );
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -133,7 +136,7 @@ export default function SignUpForm() {
               </div>
             </form>
 
-            <div className="mt-5">
+            <div className="mt-5 space-y-2">
               <p className="text-sm font-normal text-center text-gray-700 dark:text-gray-400 sm:text-start">
                 Já tem uma conta? {""}
                 <Link
@@ -141,6 +144,15 @@ export default function SignUpForm() {
                   className="text-brand-500 hover:text-brand-600 dark:text-brand-400"
                 >
                   Entrar
+                </Link>
+              </p>
+              <p className="text-sm text-center text-gray-500 dark:text-gray-400 sm:text-start">
+                Não recebeu o e-mail de confirmação?{" "}
+                <Link
+                  to="/confirmation-resend"
+                  className="text-brand-500 hover:text-brand-600 dark:text-brand-400"
+                >
+                  Reenviar
                 </Link>
               </p>
             </div>

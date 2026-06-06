@@ -165,7 +165,7 @@ export default function SignInForm() {
               </div>
             </form>
 
-            <div className="mt-5">
+            <div className="mt-5 space-y-2">
               <p className="text-sm font-normal text-center text-gray-700 dark:text-gray-400 sm:text-start">
                 Não tem uma conta? {""}
                 <Link
@@ -173,6 +173,15 @@ export default function SignInForm() {
                   className="text-brand-500 hover:text-brand-600 dark:text-brand-400"
                 >
                   Cadastre-se
+                </Link>
+              </p>
+              <p className="text-sm text-center text-gray-500 dark:text-gray-400 sm:text-start">
+                Não recebeu o e-mail de confirmação?{" "}
+                <Link
+                  to="/confirmation-resend"
+                  className="text-brand-500 hover:text-brand-600 dark:text-brand-400"
+                >
+                  Reenviar
                 </Link>
               </p>
             </div>
