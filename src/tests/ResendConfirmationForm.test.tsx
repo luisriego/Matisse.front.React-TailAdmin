@@ -3,16 +3,20 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import ResendConfirmationForm from "../components/auth/ResendConfirmationForm";
 import { CONFIRMATION_RESEND_DEFAULT_MESSAGE } from "../utils/confirmationResendApi";
+import {
+  clearPendingConfirmationEmail,
+  setPendingConfirmationEmail,
+} from "../utils/pendingConfirmationEmail";
 
-function renderForm(path = "/confirmation-resend") {
+function renderForm() {
   return render(
-    <MemoryRouter initialEntries={[path]}>
+    <MemoryRouter initialEntries={["/confirmation-resend"]}>
       <Routes>
         <Route
           path="/confirmation-resend"
           element={<ResendConfirmationForm />}
         />
-        <Route path="/signin" element={<div>SignIn page</div>} />
+        <Route path="/signup" element={<div>Cadastro page</div>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -20,17 +24,19 @@ function renderForm(path = "/confirmation-resend") {
 
 describe("ResendConfirmationForm", () => {
   beforeEach(() => {
+    clearPendingConfirmationEmail();
     vi.restoreAllMocks();
   });
 
-  it("preenche e-mail a partir do query param", () => {
-    renderForm("/confirmation-resend?email=joao%40example.com");
-    expect(screen.getByPlaceholderText(/Digite seu e-mail/i)).toHaveValue(
-      "joao@example.com",
-    );
+  it("sem sessão de cadastro não permite introduzir e-mail arbitrário", () => {
+    renderForm();
+    expect(screen.getByText(/só está disponível logo após o cadastro/i)).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/Digite seu e-mail/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Ir para cadastro/i })).toBeInTheDocument();
   });
 
-  it("mostra mensagem genérica da API em 200", async () => {
+  it("com e-mail da sessão mostra-o fixo e reenvia só para esse endereço", async () => {
+    setPendingConfirmationEmail("joao@example.com");
     const fetchMock = vi.fn(async () =>
       new Response(
         JSON.stringify({ message: CONFIRMATION_RESEND_DEFAULT_MESSAGE }),
@@ -40,9 +46,9 @@ describe("ResendConfirmationForm", () => {
     globalThis.fetch = fetchMock as typeof fetch;
 
     renderForm();
-    fireEvent.change(screen.getByPlaceholderText(/Digite seu e-mail/i), {
-      target: { value: "joao@example.com" },
-    });
+    expect(screen.getByText("joao@example.com")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+
     fireEvent.click(
       screen.getByRole("button", { name: /Reenviar e-mail de confirmação/i }),
     );
