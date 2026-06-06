@@ -40,10 +40,15 @@ export default function ResendConfirmationForm() {
         </h1>
         {noContext ? (
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            O reenvio do link de ativação só está disponível logo após o
-            cadastro, para o e-mail que acabou de registar. Se já se registou
-            noutro dispositivo ou limpou a sessão, faça um novo cadastro ou
-            contacte o síndico.
+            O reenvio só é possível para o e-mail da sua conta. Volte a{" "}
+            <Link
+              to="/signin"
+              className="text-brand-500 hover:text-brand-600 dark:text-brand-400"
+            >
+              entrar
+            </Link>
+            , indique o mesmo e-mail do cadastro e clique em «Reenviar
+            confirmação». Logo após um novo cadastro também pode reenviar aqui.
           </p>
         ) : (
           <p className="text-sm text-gray-500 dark:text-gray-400">

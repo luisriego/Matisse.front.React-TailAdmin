@@ -30,7 +30,7 @@ describe("ResendConfirmationForm", () => {
 
   it("sem sessão de cadastro não permite introduzir e-mail arbitrário", () => {
     renderForm();
-    expect(screen.getByText(/só está disponível logo após o cadastro/i)).toBeInTheDocument();
+    expect(screen.getByText(/O reenvio só é possível para o e-mail da sua conta/i)).toBeInTheDocument();
     expect(screen.queryByPlaceholderText(/Digite seu e-mail/i)).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Ir para cadastro/i })).toBeInTheDocument();
   });

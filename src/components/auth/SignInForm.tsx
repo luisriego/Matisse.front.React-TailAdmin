@@ -11,7 +11,10 @@ import {
   clearLocalBusinessSetupComplete,
   fetchSetupStatus,
 } from "../../utils/setupApi";
-import { clearPendingConfirmationEmail } from "../../utils/pendingConfirmationEmail";
+import {
+  clearPendingConfirmationEmail,
+  setPendingConfirmationEmail,
+} from "../../utils/pendingConfirmationEmail";
 
 export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
@@ -25,7 +28,9 @@ export default function SignInForm() {
 
   useEffect(() => {
     if (searchParams.get("error") === "activation_failed") {
-      setError("Link de ativação inválido ou expirado.");
+      setError(
+        "Link de ativação inválido ou expirado. Indique o seu e-mail acima e use «Reenviar confirmação».",
+      );
       setInfo("");
       const next = new URLSearchParams(searchParams);
       next.delete("error");
@@ -40,6 +45,17 @@ export default function SignInForm() {
       setSearchParams(next, { replace: true });
     }
   }, [searchParams, setSearchParams]);
+
+  const handleResendConfirmation = () => {
+    const trimmed = email.trim();
+    if (!trimmed) {
+      setError("Indique o e-mail da sua conta para reenviar a confirmação.");
+      return;
+    }
+    setError("");
+    setPendingConfirmationEmail(trimmed);
+    navigate("/confirmation-resend");
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -167,7 +183,7 @@ export default function SignInForm() {
               </div>
             </form>
 
-            <div className="mt-5">
+            <div className="mt-5 space-y-2">
               <p className="text-sm font-normal text-center text-gray-700 dark:text-gray-400 sm:text-start">
                 Não tem uma conta? {""}
                 <Link
@@ -176,6 +192,19 @@ export default function SignInForm() {
                 >
                   Cadastre-se
                 </Link>
+              </p>
+              <p className="text-sm text-center text-gray-500 dark:text-gray-400 sm:text-start">
+                Conta ainda não ativada?{" "}
+                <button
+                  type="button"
+                  onClick={handleResendConfirmation}
+                  className="text-brand-500 hover:text-brand-600 dark:text-brand-400 disabled:opacity-50"
+                  disabled={!email.trim() || isLoading}
+                >
+                  Reenviar confirmação
+                </button>
+                {" "}
+                <span className="text-gray-400">(usa o e-mail indicado acima)</span>
               </p>
             </div>
           </div>
