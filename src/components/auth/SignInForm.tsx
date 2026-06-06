@@ -183,7 +183,23 @@ export default function SignInForm() {
               </div>
             </form>
 
-            <div className="mt-5 space-y-2">
+            <div className="pt-4 mt-2 border-t border-gray-200 dark:border-gray-800">
+              <p className="mb-3 text-sm text-center text-gray-600 dark:text-gray-400">
+                Conta ainda não ativada? Reenvie o link para o e-mail indicado
+                acima.
+              </p>
+              <Button
+                variant="outline"
+                className="w-full"
+                size="sm"
+                disabled={!email.trim() || isLoading}
+                onClick={handleResendConfirmation}
+              >
+                Reenviar e-mail de confirmação
+              </Button>
+            </div>
+
+            <div className="mt-5">
               <p className="text-sm font-normal text-center text-gray-700 dark:text-gray-400 sm:text-start">
                 Não tem uma conta? {""}
                 <Link
@@ -192,19 +208,6 @@ export default function SignInForm() {
                 >
                   Cadastre-se
                 </Link>
-              </p>
-              <p className="text-sm text-center text-gray-500 dark:text-gray-400 sm:text-start">
-                Conta ainda não ativada?{" "}
-                <button
-                  type="button"
-                  onClick={handleResendConfirmation}
-                  className="text-brand-500 hover:text-brand-600 dark:text-brand-400 disabled:opacity-50"
-                  disabled={!email.trim() || isLoading}
-                >
-                  Reenviar confirmação
-                </button>
-                {" "}
-                <span className="text-gray-400">(usa o e-mail indicado acima)</span>
               </p>
             </div>
           </div>
