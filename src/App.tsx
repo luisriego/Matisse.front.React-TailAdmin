@@ -13,9 +13,6 @@ import RouteFallback from "./components/common/RouteFallback";
 const SignIn = lazy(() => import("./pages/AuthPages/SignIn"));
 const SignUp = lazy(() => import("./pages/AuthPages/SignUp"));
 const SetPassword = lazy(() => import("./pages/AuthPages/SetPassword"));
-const ResendConfirmation = lazy(
-  () => import("./pages/AuthPages/ResendConfirmation"),
-);
 const NotFound = lazy(() => import("./pages/OtherPage/NotFound"));
 const UserProfile = lazy(() => import("./pages/UserProfile"));
 const Home = lazy(() => import("./pages/Dashboard/Home"));
@@ -60,7 +57,7 @@ export default function App() {
           />
           <Route
             path="/confirmation-resend"
-            element={<ResendConfirmation />}
+            element={<Navigate to="/signin" replace />}
           />
 
           <Route path="*" element={<NotFound />} />

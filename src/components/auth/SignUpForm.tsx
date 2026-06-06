@@ -1,32 +1,31 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4 } from "uuid";
 import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "../../icons";
 import Label from "../form/Label";
 import Input from "../form/input/InputField";
 import Button from "../ui/button/Button";
-import { setPendingConfirmationEmail } from "../../utils/pendingConfirmationEmail";
 
 export default function SignUpForm() {
   const [showPassword, setShowPassword] = useState(false);
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsLoading(true);
-    setError('');
+    setError("");
 
     try {
       const userId = uuidv4();
-      const response = await fetch('/api/v1/users/register', {
-        method: 'POST',
+      const response = await fetch("/api/v1/users/register", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           id: userId,
@@ -38,13 +37,15 @@ export default function SignUpForm() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Falha ao registrar');
+        throw new Error(errorData.message || "Falha ao registrar");
       }
 
-      setPendingConfirmationEmail(email);
-      navigate("/confirmation-resend", { replace: true });
-    } catch (err: any) {
-      setError(err.message);
+      navigate("/signin", {
+        replace: true,
+        state: { pendingConfirmationEmail: email.trim() },
+      });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Falha ao registrar");
     } finally {
       setIsLoading(false);
     }
@@ -129,7 +130,7 @@ export default function SignUpForm() {
                 )}
                 <div>
                   <Button className="w-full" size="sm" disabled={isLoading}>
-                    {isLoading ? 'Cadastrando...' : 'Cadastre-se'}
+                    {isLoading ? "Cadastrando..." : "Cadastre-se"}
                   </Button>
                 </div>
               </div>
@@ -137,7 +138,7 @@ export default function SignUpForm() {
 
             <div className="mt-5">
               <p className="text-sm font-normal text-center text-gray-700 dark:text-gray-400 sm:text-start">
-                Já tem uma conta? {""}
+                Já tem uma conta?{" "}
                 <Link
                   to="/signin"
                   className="text-brand-500 hover:text-brand-600 dark:text-brand-400"

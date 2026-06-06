@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "../../icons";
 import Label from "../form/Label";
 import Input from "../form/input/InputField";
@@ -11,10 +11,7 @@ import {
   clearLocalBusinessSetupComplete,
   fetchSetupStatus,
 } from "../../utils/setupApi";
-import {
-  clearPendingConfirmationEmail,
-  setPendingConfirmationEmail,
-} from "../../utils/pendingConfirmationEmail";
+import { resendConfirmationEmail } from "../../utils/confirmationResendApi";
 
 export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
@@ -23,14 +20,26 @@ export default function SignInForm() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isResending, setIsResending] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
-    if (searchParams.get("error") === "activation_failed") {
-      setError(
-        "Link de ativação inválido ou expirado. Indique o seu e-mail acima e use «Reenviar confirmação».",
+    const fromSignup = (
+      location.state as { pendingConfirmationEmail?: string } | null
+    )?.pendingConfirmationEmail?.trim();
+    if (fromSignup) {
+      setEmail(fromSignup);
+      setInfo(
+        "Conta criada. Verifique o e-mail de confirmação ou use «Reenviar confirmação» abaixo.",
       );
+      navigate("/signin", { replace: true, state: null });
+      return;
+    }
+
+    if (searchParams.get("error") === "activation_failed") {
+      setError("Link de ativação inválido ou expirado.");
       setInfo("");
       const next = new URLSearchParams(searchParams);
       next.delete("error");
@@ -44,17 +53,29 @@ export default function SignInForm() {
       next.delete("message");
       setSearchParams(next, { replace: true });
     }
-  }, [searchParams, setSearchParams]);
+  }, [location.state, navigate, searchParams, setSearchParams]);
 
-  const handleResendConfirmation = () => {
+  const handleResendConfirmation = async () => {
     const trimmed = email.trim();
     if (!trimmed) {
-      setError("Indique o e-mail da sua conta para reenviar a confirmação.");
+      setError("Indique o e-mail acima.");
       return;
     }
     setError("");
-    setPendingConfirmationEmail(trimmed);
-    navigate("/confirmation-resend");
+    setInfo("");
+    setIsResending(true);
+    try {
+      const message = await resendConfirmationEmail(trimmed);
+      setInfo(message);
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Não foi possível reenviar o e-mail.",
+      );
+    } finally {
+      setIsResending(false);
+    }
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -79,7 +100,6 @@ export default function SignInForm() {
       const data = await response.json();
       clearSetupUnitBypass();
       clearLocalBusinessSetupComplete();
-      clearPendingConfirmationEmail();
       localStorage.setItem("token", data.token);
 
       try {
@@ -104,6 +124,8 @@ export default function SignInForm() {
       setIsLoading(false);
     }
   };
+
+  const busy = isLoading || isResending;
 
   return (
     <div className="flex flex-col flex-1">
@@ -176,32 +198,32 @@ export default function SignInForm() {
                   </div>
                 )}
                 <div>
-                  <Button className="w-full" size="sm" disabled={isLoading}>
+                  <Button className="w-full" size="sm" disabled={busy}>
                     {isLoading ? "Entrando..." : "Entrar"}
                   </Button>
                 </div>
               </div>
             </form>
 
-            <div className="pt-4 mt-2 border-t border-gray-200 dark:border-gray-800">
-              <p className="mb-3 text-sm text-center text-gray-600 dark:text-gray-400">
-                Conta ainda não ativada? Reenvie o link para o e-mail indicado
-                acima.
-              </p>
-              <Button
-                variant="outline"
-                className="w-full"
-                size="sm"
-                disabled={!email.trim() || isLoading}
-                onClick={handleResendConfirmation}
+            <p className="mt-5 text-sm text-center text-gray-600 dark:text-gray-400 sm:text-start">
+              Conta ainda não ativada?{" "}
+              <button
+                type="button"
+                onClick={() => void handleResendConfirmation()}
+                disabled={busy}
+                className="text-brand-500 hover:text-brand-600 dark:text-brand-400 disabled:opacity-50"
               >
-                Reenviar e-mail de confirmação
-              </Button>
-            </div>
+                {isResending ? "A reenviar…" : "Reenviar confirmação"}
+              </button>{" "}
+              <span className="text-gray-500">
+                (usa o e-mail acima se estiver registado; senão nenhuma ação
+                será realizada)
+              </span>
+            </p>
 
             <div className="mt-5">
               <p className="text-sm font-normal text-center text-gray-700 dark:text-gray-400 sm:text-start">
-                Não tem uma conta? {""}
+                Não tem uma conta?{" "}
                 <Link
                   to="/signup"
                   className="text-brand-500 hover:text-brand-600 dark:text-brand-400"
