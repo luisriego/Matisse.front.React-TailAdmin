@@ -93,8 +93,16 @@ export default function SignInForm() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Falha ao entrar");
+        const errorData = (await response.json().catch(() => null)) as {
+          message?: string;
+        } | null;
+        const raw = errorData?.message?.trim() || "";
+        if (/jwt|private\.pem|lexik_jwt/i.test(raw)) {
+          throw new Error(
+            "Serviço temporariamente indisponível. Tente novamente em alguns minutos.",
+          );
+        }
+        throw new Error(raw || "Falha ao entrar");
       }
 
       const data = await response.json();
